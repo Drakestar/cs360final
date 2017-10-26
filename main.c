@@ -26,32 +26,32 @@ int iblock;  // inodes begin block
 
 void init() 
 {
+	// Set proc 0 to root account and 1 to a normal user
 	proc[0].uid = 0;
 	proc[1].uid = 1;
-	for (int i = 0; i < NPROC; i++) 
-	{
-		proc[NPROC].cwd = 0;
-	}
-	for (int i = 0; i < 100; i++) 
-	{
-		minode[i].refCount = 0;
-	}
+	// Move through the users and reset working directories?
+	for (int i = 0; i < NPROC; i++) proc[NPROC].cwd = 0;
+	// Move through inodes and reset refcount
+	for (int i = 0; i < 100; i++) minode[i].refCount = 0;
+	// Set root?
 	root = 0;
 }
 
 void mount_root(char *device) 
 {
-	
+	// Returns smallest integer greater than zero, (the file descriptor)
 	fd = open(device, O_RDWR);
+	// If the fd is under 0 it means it failed
 	if (fd < 0) 
 	{
 		printf("open: %s failed\n", device);
 		exit(1);
 	}
+	// Read the SuperBlock into a buffer
+	// fd is the block, 1 is the array of the super, and buf is where i
 	get_block(fd, 1, buf);
 	sp = (SUPER *)buf;
-	get_block(fd, 2, buf);
-	gp = (GD *)buf;
+	// Read the group descriptor block
 	printf("%-30s = %8x ", "s_magic", sp->s_magic);
 	if (sp->s_magic != 0xEF53) 
 	{
@@ -61,11 +61,12 @@ void mount_root(char *device)
 	
 	printf("EXT2 FS OK\n");
 	
-	root = iget(dev, 2);
-	
+	root = iget(fd, 2);
 	mtable[0].dev = fd;
 	mtable[0].ninodes = sp->s_inodes_count;
 	mtable[0].nblocks = sp->s_blocks_count;
+	get_block(fd, 2, buf);
+	gp = (GD *)buf;
 	mtable[0].bmap = gp->bg_block_bitmap;
 	mtable[0].imap = gp->bg_inode_bitmap;
 	mtable[0].iblock = gp->bg_inode_table;
@@ -73,8 +74,8 @@ void mount_root(char *device)
 	strcpy(mtable[0].deviceName, device);
 	strcpy(mtable[0].mountedDirName, "/");
 	
-	proc[0].cwd = iget(dev, 2);
-	proc[1].cwd = iget(dev, 2);
+	proc[0].cwd = iget(fd, 2);
+	proc[1].cwd = iget(fd, 2);
 	
 	running = &proc[0];
 
@@ -158,10 +159,11 @@ void rpwd(MINODE *wd) {
 char *device = "mydisk";
 int main(int argc, char *argv[]) 
 {
+	// Used for getting input
 	char line[128];
-	if (argc > 1) {
-		device = argv[1];
-	}
+	// In case user has a different file other than mydisk
+	if (argc > 1) device = argv[1];
+	
 	init();
 	mount_root(device);
 	
@@ -173,7 +175,7 @@ int main(int argc, char *argv[])
 		tok = strtok(line," ");
 		//Get command token
 		if(tok) cmd = tok;
-		printf("%s", cmd);
+		printf("%s\n", cmd);
 		// Exit No code
 		if(!strcmp(cmd, "quit\n")) 
 		{
@@ -181,19 +183,25 @@ int main(int argc, char *argv[])
 			quit();
 		}
 		// LS
-		if(!strcmp(cmd, "ls\n"))
-		 {
-		
+		if(!strcmp(cmd, "ls") | (!strcmp(cmd, "ls\n")))
+		{
+			// Use ls with pathname, which is retrieved from second token
+			tok = strtok(NULL," ");
+			//ls();
 		}
 		// CD
 		if(!strcmp(cmd, "cd\n")) 
+			// Also uses second token to get a pathname
+			tok = strtok(NULL," ");
+		
 		{
 		
 		}
 		// PWD
 		if(!strcmp(cmd, "pwd\n"))
-		 {
-		
+		{
+			// Where do i get the parameter for this?
+			//pwd();
 		}
 	}
 }

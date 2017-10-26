@@ -59,7 +59,6 @@ MINODE *iget(int dev, int ino)
 		 }
 
 	 }
-
      //(3). use mailman to compute
      //blk  = block containing THIS INODE
      int blk =  ((ino - 1) / INODES_PER_BLOCK + mtable);
