@@ -1,26 +1,21 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <fcntl.h>
-#include <ext2fs/ext2_fs.h>
-#include <string.h>
-#include <libgen.h>
-#include <sys/stat.h>
-#include "type.h"
 #include "util.c"
 
 // globals
-MINODE minode[NMINODE];       
+MINODE minode[NMINODES];       
 MINODE *root;
 PROC   proc[NPROC], *running;
-MTABLE mtable[4]; 
+MOUNT mtable[4]; 
 
 SUPER *sp;
 GD    *gp;
 INODE *ip;
 
-char buf[BLKSIZE]
+char buf[BLKSIZE];
+char *cmd;
+char *tok;
 
 int dev;
+int fd;
 /**** same as in mount table ****/
 int nblocks; // from superblock
 int ninodes; // from superblock
@@ -37,7 +32,7 @@ void init()
 	{
 		proc[NPROC].cwd = 0;
 	}
-	for (i = 0; i < 100; i++) 
+	for (int i = 0; i < 100; i++) 
 	{
 		minode[i].refCount = 0;
 	}
@@ -50,7 +45,7 @@ void mount_root(char *device)
 	fd = open(device, O_RDWR);
 	if (fd < 0) 
 	{
-		printf("failed\n");
+		printf("open: %s failed\n", device);
 		exit(1);
 	}
 	get_block(fd, 1, buf);
@@ -64,6 +59,8 @@ void mount_root(char *device)
 		exit(2);
 	}
 	
+	printf("EXT2 FS OK\n");
+	
 	root = iget(dev, 2);
 	
 	mtable[0].dev = fd;
@@ -73,8 +70,8 @@ void mount_root(char *device)
 	mtable[0].imap = gp->bg_inode_bitmap;
 	mtable[0].iblock = gp->bg_inode_table;
 	mtable[0].mounted_inode = root;
-	mtable[0].deviceName = device;
-	mtable[0].mountedDirName = "/";
+	strcpy(mtable[0].deviceName, device);
+	strcpy(mtable[0].mountedDirName, "/");
 	
 	proc[0].cwd = iget(dev, 2);
 	proc[1].cwd = iget(dev, 2);
@@ -86,10 +83,11 @@ void mount_root(char *device)
 void ls_dir(char *dirname) {
 	int ino = getino(dirname);
 	MINODE *mip = iget(dev, ino);
+	char *temp;
 	get_block(mtable[0].dev, mtable[0].iblock, buf);
 	INODE *ip = (INODE *)buf;
 	ip++;
-	get_block(mtable[0].dev, ip->iblock[0], buf);
+	get_block(mtable[0].dev, ip->i_block[0], buf);
 	DIR *dp = (DIR *)buf;
 	char *cp = buf;
 	while (cp < buf + BLKSIZE) {
@@ -97,14 +95,14 @@ void ls_dir(char *dirname) {
 		temp[dp->name_len] = 0;
 		cp += dp->rec_len;
 		dp = (DIR *)cp;
-		ls_file(dp.inode);
+		ls_file(dp->inode);
 	}
 	
 }
 
 void ls_file(int ino) {
-	INODE *mip = iget(dev, ino);
-	printf("%d\n", mip->mode);
+	INODE *mip = iget(mtable[0].dev, ino);
+	printf("%d\n", mip->i_mode);
 }
 
 void ls(char *pathname) 
@@ -118,15 +116,49 @@ void quit() {
 	//iput() all minodes with (refCount > 0 && DIRTY);
 	for (int i = 0; i < NMINODES; i++) {
 		if ((minode[i].refCount > 0) && (minode[i].dirty)) {
-			iput(minode[i]);
+			iput(&minode[i]);
 		}
 	}
 	exit(0);
 }
 
+/*
+void cd(char *pathname) {
+	// no pathname mean cd to root
+	if (!pathname) {
+		// CD to root
+	}
+	// Otherwise there is a pathname
+	else {
+		mtable[0].inode = getino(pathname);
+		MINODE mip = iget(dev, mtable[0].ino);
+		// Verify mip->inode is a dir
+		if (mip->inode) {
+			iput(running->cwd);
+			running->cwd = mip;
+		}
+	}
+}
+
+void pwd(MINODE *wd) {
+	if (wd == root) printf("/");
+	else rpwd(wd);
+}
+
+void rpwd(MINODE *wd) {
+	if (wd == root) return;
+	// from i_block[0] of wd->INODE: get my_ino, parent_ino
+     pip = iget(dev, parent_ino);
+     from pip->INODE.i_block[0]: get my_name string as LOCAL
+
+     rpwd(pip);  // recursive call rpwd() with pip
+
+     printf("/%s", my_name);
+*/
+char *device = "mydisk";
 int main(int argc, char *argv[]) 
 {
-	char *device = "mydisk";
+	char line[128];
 	if (argc > 1) {
 		device = argv[1];
 	}
@@ -138,5 +170,30 @@ int main(int argc, char *argv[])
 	{
 		printf("Commands: [ls|cd|pwd|quit]\ninput command:");
 		fgets(line, 128, stdin);
+		tok = strtok(line," ");
+		//Get command token
+		if(tok) cmd = tok;
+		printf("%s", cmd);
+		// Exit No code
+		if(!strcmp(cmd, "quit\n")) 
+		{
+			printf("You typed exit, goodbye!\n"); 
+			quit();
+		}
+		// LS
+		if(!strcmp(cmd, "ls\n"))
+		 {
+		
+		}
+		// CD
+		if(!strcmp(cmd, "cd\n")) 
+		{
+		
+		}
+		// PWD
+		if(!strcmp(cmd, "pwd\n"))
+		 {
+		
+		}
 	}
 }

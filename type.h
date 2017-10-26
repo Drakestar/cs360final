@@ -2,7 +2,6 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-
 #include <fcntl.h>
 #include <ext2fs/ext2_fs.h>
 #include <libgen.h>
@@ -75,7 +74,7 @@ typedef struct Proc{
       
 // In-memory inodes structure
 typedef struct Minode{		
-  INODE INODE;        // disk inode
+  INODE inode;        // disk inode
   int   dev, ino;
   int   refCount;
   int   dirty;

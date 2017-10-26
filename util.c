@@ -1,16 +1,29 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <fcntl.h>
-#include <ext2fs/ext2_fs.h>
-#include <string.h>
-#include <libgen.h>
-#include <sys/stat.h>
 #include "type.h"
 
+// globals
+MINODE minode[NMINODES];       
+MINODE *root;
+PROC   proc[NPROC], *running;
+MOUNT mtable[4]; 
+
+SUPER *sp;
+GD    *gp;
+INODE *ip;
+
+char buf[BLKSIZE];
+
+int dev;
+/**** same as in mount table ****/
+int nblocks; // from superblock
+int ninodes; // from superblock
+int bmap;    // bmap block 
+int imap;    // imap block 
+int iblock;  // inodes begin block
+
 /********** Functions as BEFORE ***********/
-int get_block(int dev, int blk, char buf[ ]) 
-{
-	printf("Nothing here yet");
+int get_block(int fd, int blk, char *buf) {
+  lseek(fd, (long)blk*BLKSIZE, SEEK_SET);
+  return read(fd, buf, BLKSIZE);
 }
 
 int put_block(int dev, int blk, char buf[ ]) 
@@ -21,18 +34,19 @@ int put_block(int dev, int blk, char buf[ ])
 // load INODE of (dev,ino) into a minode[]; return mip->minode[]
 MINODE *iget(int dev, int ino)
 {
+	int i;
 	char buf[1024];
      //(1). search minode[ ] array for an item pointed by mip with the SAME (dev,ino)
-     for (i = 0; i < MNINODE; i++) 
+     for (i=0; i < NMINODES; i++) 
      {
 		 if (minode[i].ino == ino && minode[i].dev == dev) {
 			 minode[i].refCount++;
-			 return minode[i];
+			 return &minode[i];
 		 }
 	 }
 	 
 	 //(2). search minode[ ] array for a mip whose refCount=0:
-     for (i = 0; i < MNINODE; i++) 
+     for (i = 0; i < NMINODES; i++) 
      {
 		 if (!minode[i].refCount) {
 			 minode[i].refCount = 1;
@@ -48,19 +62,19 @@ MINODE *iget(int dev, int ino)
 
      //(3). use mailman to compute
      //blk  = block containing THIS INODE
-     int blk =  (ino - 1) / INODES_PER_BLOCK + mtable;
+     int blk =  ((ino - 1) / INODES_PER_BLOCK + mtable);
      //disp = which INODE in block
-     int disp = (ino - 1) % INODES_PER_BLOCK;
+     int disp = ((ino - 1) % INODES_PER_BLOCK);
      //load blk into buf[ ];
      get_block(dev, disp, buf);
      //INODE *ip point at INODE in buf[ ];
      INODE *ip = (INODE *) buf;
      
      //copy INODE into minode.INODE by
-     minode[i]->INODE = *ip;
+     minode[i].inode = *ip;
 
      //(4). return mip;
-     return minode[i];
+     return &minode[i];
 }
 
 
@@ -71,9 +85,9 @@ int iput(MINODE *mip)  // dispose of a minode[] pointed by mip
  
 	//(2). 
 	if (mip->refCount > 0) 
-        return;
+        return 0;
      if (!mip->dirty)       
-        return;
+        return 0;
  
 	//(3). write INODE back to disk 
 
@@ -88,7 +102,7 @@ int iput(MINODE *mip)  // dispose of a minode[] pointed by mip
     get_block(mip->dev, block, buf);
 
     ip = (INODE *)buf + disp;
-    *ip = mip->INODE;         // copy INODE into *ip
+    *ip = mip->inode;         // copy INODE into *ip
 
     put_block(mip->dev, block, buf);
 } 
@@ -116,21 +130,22 @@ int getino(char *pathname)
      mip = iget(dev, running->cwd->ino);
 
   strcpy(buf, pathname);
-  tokenize(buf); // n = number of token strings
-
-  for (i=0; i < n; i++){
+  char *token = strtok(buf, " "); // n = number of token strings
+  
+  while (token != NULL) {
     printf("===========================================\n");
-    printf("getino: i=%d name[%d]=%s\n", i, i, kcwname[i]);
+    printf("getino: i=%d name[%d]=%s\n", i, i, token);
  
-    ino = search(mip, name[i]);
+    ino = search(mip, token);
 
     if (ino==0){
        iput(mip);
-       printf("name %s does not exist\n", name[i]);
+       printf("name %s does not exist\n", token);
        return 0;
     }
     iput(mip);
     mip = iget(dev, ino);
+    token = strtok(NULL, " ");
   }
   iput(mip);
 
