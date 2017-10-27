@@ -98,7 +98,11 @@ void ls_file(int ino) {
 
 void ls(char *pathname) 
 {
+	MINODE *cwd = malloc(sizeof(MINODE));
+	int found = 1;
+	char path_cp[256];
 	char *temp;
+	int ino;
 	// Split pathname into child and parent
 	// Check parent exists and is dir
 	
@@ -106,21 +110,20 @@ void ls(char *pathname)
 	if (pathname) {
 		// Absolute
 		if (pathname[0] == '/') {
+			strncpy(path_cp, pathname, 255);
 			// Need to find dirname starting from root
 			char *tok = strtok(pathname, "/");
+			memcpy(cwd, &root->inode, sizeof(INODE));
 			// Go through tokens ensuring that each one exists
 			// then pass the dirname into ls_dir
-			while(tok != NULL) {
+			while(tok) {
 				// Step through each token checking that is has the
 				// child
 				// If it does get the next token and go into that
 				// directory
-				if (search(running->cwd, tok)) {
-					
-				}
-				else {
-				}
+				ino = search(running->cwd, tok);
 				tok = strtok(NULL, "/");
+				
 			}
 			ls_dir(tok);
 		}
