@@ -53,8 +53,11 @@ void mount_root(char *device)
 	proc[0].cwd = iget(fd, 2);
 	proc[1].cwd = iget(fd, 2);
 	
-	running = &proc[0];
+	//running = &proc[0];
+	running = malloc(sizeof(PROC));
+	memcpy(running, &proc[0], sizeof(PROC));
 
+	
 }
 
 void quit() {
@@ -72,130 +75,109 @@ void ls_dir(char *dirname) {
 	int ino = getino(dirname);
 	MINODE *mip = iget(dev, ino);
 	char temp[256];
-	//get_block(mtable[0].dev, mtable[0].iblock, buf);
-	lseek(dev, (mtable[0].iblock * BLKSIZE ) + sizeof(INODE), SEEK_SET);
-	read(dev, buf, BLKSIZE);
-	INODE ip;
-	mempcpy(&ip, buf, sizeof(INODE));
-	get_block(mtable[0].dev, ip.i_block[0], buf);
+	get_block(dev, mip->inode.i_block[0], buf);
 	DIR *dp = (DIR *)buf;
 	char *cp = buf;
 	while (cp < buf + BLKSIZE) {
 		strncpy(temp, dp->name, dp->name_len);
 		temp[dp->name_len] = 0;
-		printf("name: %s   ", temp);
+		printf("dirname: %s   ", temp);
 		cp += dp->rec_len;
 		dp = (DIR *)cp;
 		ls_file(dp->inode);
 	}
-	
 }
 
 void ls_file(int ino) {
 	int n;
 	INODE *ip = iget(dev, ino);
 	printf("%d\n", ip->i_size);
-	
-	
 }
 
 void ls(char *pathname) 
 {
-	MINODE *cwd = malloc(sizeof(MINODE));
+	//MINODE *cwd = malloc(sizeof(MINODE));
 	MINODE *mip;
-	INODE ip;
 	int ino;
-	int found = 1;
-	char path_cp[256];
-	char temp[256];
-	// Split pathname into child and parent
-	// Check parent exists and is dir
-	
-	// A path was passed in
+	char path_cp[256], temp[256];
+	// Absolute or relative pathname
 	if (pathname) {
 		// Absolute
 		if (pathname[0] == '/') {
-			strncpy(path_cp, pathname, 255);
-			printf("%s\n", path_cp);
-			// Need to find dirname starting from root
-			char *tok = strtok(pathname, "/");
-			memcpy(cwd, root, sizeof(MINODE));
-			//printf("pathcp : %s\ntok: %s\ncwd inode: %d\nroot inode %d\n", path_cp, tok, cwd->inode.i_size, root->inode.i_size);
-			// Go through tokens ensuring that each one exists
-			// then pass the dirname into ls_dir
-			while(tok) {
-				ino = getino("/");
-				printf("ino = %d\n", ino);
-				mip = iget(dev, ino);
-				//get_block(mtable[0].dev, mtable[0].iblock, buf);
-				lseek(dev, (mtable[0].iblock * BLKSIZE ) + sizeof(INODE), SEEK_SET);
-				read(dev, buf, BLKSIZE);
-				mempcpy(&ip, buf, sizeof(INODE));
-				get_block(mtable[0].dev, ip.i_block[0], buf);
-				DIR *dp = (DIR *)buf;
-				char *cp = buf;
-				while (cp < buf + BLKSIZE) {
-					strncpy(temp, dp->name, dp->name_len);
-					temp[dp->name_len] = 0;
-					printf("name: %s\n", temp);
-					cp += dp->rec_len;
-					dp = (DIR *)cp;
-				}
-				// Step through each token checking that is has the
-				// child
-				// If it does get the next token and go into that
-				// directory
-				//ino = getino(tok);
-				tok = strtok(NULL, "/");
-				//cwd = iget(dev, ino);
-				if (ino < 0) {
-					printf("dir not found\n");
-					return;
-				}
-			}
-			ls_dir(tok);
+			ls_dir(pathname);
 		}
 		// Relative, find dirname starting from current location
 		else {
-			char *tok = strtok(pathname, "/");
-			while (tok != NULL) {
-				
-			}
+			ls_dir(pathname);
 		}
 	} 
 	// Current directory
 	else {
 		// If at root pass that through
-		if (proc[0].cwd == root) {
+		if (running->cwd == root) {
+			printf("am root\n");
+			printf("ROOT ino: %d\n", root->ino);
+
 			ls_dir("/");
 		}
-		// Otherwise search from current location
-		
+		else
+		{
+			printf("LS running ino: %d\n", running->cwd->ino);
+			char temp[256];
+			int mynode = search(running->cwd, ".");
+			int parent = search(running->cwd, "..");
+			printf("LS mynode ino: %d\n", mynode);
+			printf("LS parents ino: %d\n", parent);
+			
+			// from i_block[0] of wd->INODE: get my_ino, parent_ino
+			MINODE *pip = iget(dev, parent);
+			//from pip->INODE.i_block[0]: get my_name string as LOCAL
+			get_block(mtable[0].dev, pip->inode.i_block[0], buf);
+			DIR *dp = (DIR *)buf;
+			char *cp = buf;
+			while (cp < buf + BLKSIZE) {
+				if (dp->inode == mynode) {
+					strncpy(temp, dp->name, dp->name_len);
+					temp[dp->name_len] = 0;
+				}
+				cp += dp->rec_len;
+				dp = (DIR *)cp;
+			}
+			printf("temp = %s\n", temp);
+			//ls_dir(temp);
+		}
 	}
 }
 
 void cd(char *pathname) {
-	int ino;
-	// no pathname mean cd to root
-	if (!pathname) {
-		printf("TO THE ROOT\n");
-		proc[0].cwd = root;
-	}
-	// Otherwise there is a pathname
-	else {
-		ino = getino(pathname);
+
+		// Works for given pathname
+		int ino = getino(pathname);
 		MINODE *mip = iget(dev, ino);
-		// Verify mip->inode is a dir
-		if (mip->inode.i_mode) {
-			iput(running->cwd);
-			running->cwd = mip;
+		printf("ino = %d\n", ino);
+		get_block(dev, mip->inode.i_block[0], buf);
+		DIR *dp = (DIR *)buf;
+		char *cp = buf;
+		while (cp < buf + BLKSIZE) {
+			if(mip->ino == dp->inode)
+			{
+				printf("Before cwd change: %d\n", running->cwd->ino);
+				running->cwd = mip;
+				//memcpy(running->cwd, mip, sizeof(MINODE));
+				printf("After cwd change: %d\n", running->cwd->ino);
+			}
+			cp += dp->rec_len;
+			dp = (DIR *)cp;
 		}
-	}
+
 }
 
 void pwd(MINODE *wd) {
 	if (wd == root) printf("/");
-	else rpwd(wd);
+	else {
+		printf("not root\n");
+		rpwd(wd);
+	}
 	printf("\n");
 }
 
@@ -256,7 +238,7 @@ int main(int argc, char *argv[])
 			ls(tok);
 		}
 		// CD
-		if(!strcmp(cmd, "cd\n")) { 
+		if(!strcmp(cmd, "cd\n") | (!strcmp(cmd, "cd"))) { 
 			// Also uses second token to get a pathname
 			tok = strtok(NULL," ");
 			cd(tok);
@@ -265,7 +247,7 @@ int main(int argc, char *argv[])
 		if(!strcmp(cmd, "pwd\n"))
 		{
 			// Where do i get the parameter for this?
-			pwd(proc[0].cwd);
+			pwd(running->cwd);
 		}
 	}
 }
