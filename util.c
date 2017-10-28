@@ -63,13 +63,16 @@ MINODE *iget(int dev, int ino)
 
 	 }
      //(3). use mailman to compute
-     printf("iblock %d: ", mtable[0].iblock);
      //blk  = block containing THIS INODE
-     int blk =  ((ino - 1) / INODES_PER_BLOCK + mtable[0].iblock) * BLKSIZE;
+     //int blk =  ((ino - 1) / INODES_PER_BLOCK + mtable[0].iblock) * BLKSIZE;
+     int blk =  ((ino - 1) / INODES_PER_BLOCK + mtable[0].iblock);
+     
      //disp = which INODE in block
-     int disp = ((ino - 1) % INODES_PER_BLOCK * 128);
+     //int disp = ((ino - 1) % INODES_PER_BLOCK * 128);
+     int disp = ((ino - 1) % INODES_PER_BLOCK);
+     
      //load blk into buf[ ];
-     get_block(dev, disp + blk, buf);
+     get_block(dev, blk+disp, buf);
      //INODE *ip point at INODE in buf[ ];
      INODE *ip = (INODE *)buf;
      
@@ -118,18 +121,17 @@ int search(MINODE *mip, char *name)
 	printf("inumber: %d\n", mip->inode.i_block[0]);
     for (int i = 0; i < 12; i++) 
     {
-
-		get_block(dev, mip->inode.i_block[i], buf);
-		//lseek(dev, mip.inode->i_block[i]*BLKSIZE, SEEK_SET);
+		int blk =  mip->inode.i_block[i];
+		get_block(dev, blk , buf);
+		//lseek(dev, mip->inode.i_block[i]*BLKSIZE, SEEK_SET);
 		//read(dev, buf, BLKSIZE);
 		dp = (DIR *)buf;
 		cp = buf;
 		while (cp < buf + BLKSIZE) 
 		{
-			
 			strncpy(temp, dp->name, dp->name_len);
-			printf("namelen : %d\n", dp->name_len);
 			temp[dp->name_len] = 0;
+			printf("in search temp = %s\n", temp);
 			if (!strcmp(name, temp)) 
 			{
 				return dp->inode;
@@ -153,7 +155,7 @@ int getino(char *pathname)
   printf("getino: pathname=%s\n", pathname);
   if (strcmp(pathname, "/")==0) {
      return 2;
-	}
+  }
   
   if (pathname[0]=='/')
      mip = iget(dev, 2);
@@ -168,8 +170,7 @@ int getino(char *pathname)
     printf("getino: i=%d name[%d]=%s\n", i, i, token);
 	
     ino = search(mip, token);
-    
-    if (ino==0){
+    if (ino < 0){
        iput(mip);
        printf("name %s does not exist\n", token);
        return 0;

@@ -26,6 +26,7 @@ void mount_root(char *device)
 	// Read the SuperBlock into a buffer
 	// fd is the block, 1 is the array of the super, and buf is where i
 	get_block(fd, 1, buf);
+	printf("inode size: %d\n", sizeof(INODE));
 	sp = (SUPER *)buf;
 	// Read the group descriptor block
 	if (sp->s_magic != 0xEF53) 
@@ -34,7 +35,7 @@ void mount_root(char *device)
 		exit(2);
 	}
 	
-	root = iget(fd, 2);
+	
 	mtable[0].dev = fd;
 	mtable[0].ninodes = sp->s_inodes_count;
 	mtable[0].nblocks = sp->s_blocks_count;
@@ -48,7 +49,7 @@ void mount_root(char *device)
 	mtable[0].mounted_inode = root;
 	strcpy(mtable[0].deviceName, device);
 	strcpy(mtable[0].mountedDirName, "/");
-	
+	root = iget(fd, 2);	
 	proc[0].cwd = iget(fd, 2);
 	proc[1].cwd = iget(fd, 2);
 	
@@ -91,18 +92,22 @@ void ls_dir(char *dirname) {
 }
 
 void ls_file(int ino) {
-	INODE *mip = iget(dev, ino);
-	printf("%d\n", mip->i_mode);
+	int n;
+	INODE *ip = iget(dev, ino);
+	printf("%d\n", ip->i_size);
+	
 	
 }
 
 void ls(char *pathname) 
 {
 	MINODE *cwd = malloc(sizeof(MINODE));
+	MINODE *mip;
+	INODE ip;
+	int ino;
 	int found = 1;
 	char path_cp[256];
-	char *temp;
-	int ino;
+	char temp[256];
 	// Split pathname into child and parent
 	// Check parent exists and is dir
 	
@@ -111,19 +116,42 @@ void ls(char *pathname)
 		// Absolute
 		if (pathname[0] == '/') {
 			strncpy(path_cp, pathname, 255);
+			printf("%s\n", path_cp);
 			// Need to find dirname starting from root
 			char *tok = strtok(pathname, "/");
-			memcpy(cwd, &root->inode, sizeof(INODE));
+			memcpy(cwd, root, sizeof(MINODE));
+			//printf("pathcp : %s\ntok: %s\ncwd inode: %d\nroot inode %d\n", path_cp, tok, cwd->inode.i_size, root->inode.i_size);
 			// Go through tokens ensuring that each one exists
 			// then pass the dirname into ls_dir
 			while(tok) {
+				ino = getino("/");
+				printf("ino = %d\n", ino);
+				mip = iget(dev, ino);
+				//get_block(mtable[0].dev, mtable[0].iblock, buf);
+				lseek(dev, (mtable[0].iblock * BLKSIZE ) + sizeof(INODE), SEEK_SET);
+				read(dev, buf, BLKSIZE);
+				mempcpy(&ip, buf, sizeof(INODE));
+				get_block(mtable[0].dev, ip.i_block[0], buf);
+				DIR *dp = (DIR *)buf;
+				char *cp = buf;
+				while (cp < buf + BLKSIZE) {
+					strncpy(temp, dp->name, dp->name_len);
+					temp[dp->name_len] = 0;
+					printf("name: %s\n", temp);
+					cp += dp->rec_len;
+					dp = (DIR *)cp;
+				}
 				// Step through each token checking that is has the
 				// child
 				// If it does get the next token and go into that
 				// directory
-				ino = search(running->cwd, tok);
+				//ino = getino(tok);
 				tok = strtok(NULL, "/");
-				
+				//cwd = iget(dev, ino);
+				if (ino < 0) {
+					printf("dir not found\n");
+					return;
+				}
 			}
 			ls_dir(tok);
 		}
