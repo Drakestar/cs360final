@@ -72,25 +72,35 @@ void quit() {
 
 
 void ls_dir(char *dirname) {
+	// Get inode number of directory
 	int ino = getino(dirname);
-	MINODE *mip = iget(dev, ino);
+	// Get the actual mInode from the number
+	MINODE *mip = iget(mtable[0].dev, ino);
+	// Temp variable used for printing
 	char temp[256];
-	get_block(dev, mip->inode.i_block[0], buf);
+	// Get the (hopefully) Directory block into the buffer
+	get_block(mtable[0].dev, mip->inode.i_block[0], buf);
+	// Set the directory pointer to the buffer
 	DIR *dp = (DIR *)buf;
+	// Set cp to buf
 	char *cp = buf;
+	// While there are still directories
 	while (cp < buf + BLKSIZE) {
+		// Copy directory name to temp variable and print
 		strncpy(temp, dp->name, dp->name_len);
 		temp[dp->name_len] = 0;
 		printf("dirname: %s   ", temp);
+		// Advance c pointer and set dp to (DIR)cp
 		cp += dp->rec_len;
 		dp = (DIR *)cp;
+		// Should this go before or after the advancement?
 		ls_file(dp->inode);
 	}
 }
 
 void ls_file(int ino) {
-	int n;
-	INODE *ip = iget(dev, ino);
+	// Using the inode pointer we COULD print out information on the directory
+	INODE *ip = iget(mtable[0].dev, ino);
 	printf("%d\n", ip->i_size);
 }
 
@@ -100,37 +110,39 @@ void ls(char *pathname)
 	MINODE *mip;
 	int ino;
 	char path_cp[256], temp[256];
-	// Absolute or relative pathname
+	// A path name was passed in so we either need Absolute or relative LS
 	if (pathname) {
-		// Absolute
+		// Absolute means that it will either work or it won't (Should check for that in ls_dir?)
 		if (pathname[0] == '/') {
 			ls_dir(pathname);
 		}
 		// Relative, find dirname starting from current location
+		// Probably needs to be changed to add on the root and everything before it
+		// Maybe have a different pwd that returns a string that pathname can be
+		// appended to?
+		// So if pwd is: /usr/doc and the pathanme is: assignment
+		// we would pass ls_dir : /usr/doc/assignment
 		else {
 			ls_dir(pathname);
 		}
 	} 
 	// Current directory
 	else {
-		// If at root pass that through
+		// If at root pass root to ls_dir
 		if (running->cwd == root) {
-			printf("am root\n");
-			printf("ROOT ino: %d\n", root->ino);
-
 			ls_dir("/");
 		}
+		// Not at root
 		else
 		{
-			printf("LS running ino: %d\n", running->cwd->ino);
+			// If we use the same "return" pwd I mentioned above, we could
+			// just pass what that returns into ls_dir (as of now i'll just comment this)
+			
 			char temp[256];
 			int mynode = search(running->cwd, ".");
 			int parent = search(running->cwd, "..");
-			printf("LS mynode ino: %d\n", mynode);
-			printf("LS parents ino: %d\n", parent);
-			
 			// from i_block[0] of wd->INODE: get my_ino, parent_ino
-			MINODE *pip = iget(dev, parent);
+			MINODE *pip = iget(mtable[0].dev, parent);
 			//from pip->INODE.i_block[0]: get my_name string as LOCAL
 			get_block(mtable[0].dev, pip->inode.i_block[0], buf);
 			DIR *dp = (DIR *)buf;
@@ -149,59 +161,74 @@ void ls(char *pathname)
 	}
 }
 
+
 void cd(char *pathname) {
 
-		// Works for given pathname
-		int ino = getino(pathname);
-		MINODE *mip = iget(dev, ino);
-		printf("ino = %d\n", ino);
-		get_block(dev, mip->inode.i_block[0], buf);
-		DIR *dp = (DIR *)buf;
-		char *cp = buf;
-		while (cp < buf + BLKSIZE) {
-			if(mip->ino == dp->inode)
-			{
-				printf("Before cwd change: %d\n", running->cwd->ino);
-				running->cwd = mip;
-				//memcpy(running->cwd, mip, sizeof(MINODE));
-				printf("After cwd change: %d\n", running->cwd->ino);
+		// If a pathname is passed in
+		if (pathname) {
+			// If the pathname is absolute
+			if (pathname[0] == '/') {
+				int ino = getino(pathname);
+				MINODE *mip = iget(mtable[0].dev, ino);
+				printf("ino = %d\n", ino);
+				get_block(mtable[0].dev, mip->inode.i_block[0], buf);
+				DIR *dp = (DIR *)buf;
+				char *cp = buf;
+				while (cp < buf + BLKSIZE) {
+					if(mip->ino == dp->inode)
+					{
+						printf("Before cwd change: %d\n", running->cwd->ino);
+						running->cwd = mip;
+						//memcpy(running->cwd, mip, sizeof(MINODE));
+						printf("After cwd change: %d\n", running->cwd->ino);
+					}
+					cp += dp->rec_len;
+					dp = (DIR *)cp;
+				}
+			// Otherwise it's a relative pathname
+			} else {
+				
 			}
-			cp += dp->rec_len;
-			dp = (DIR *)cp;
+		// Otherwise go to the root
+		} else {
+			running->cwd = root;
 		}
 
 }
 
 void pwd(MINODE *wd) {
+	// If it's at the root from the start just print that
 	if (wd == root) printf("/");
-	else {
-		printf("not root\n");
-		rpwd(wd);
-	}
-	printf("\n");
+	else rpwd(wd); // Otherwise recursivley print working directory
+	printf("\n"); // Newline to look nice
 }
 
 void rpwd(MINODE *wd) {
 	char *temp;
+	// Base case
 	if (wd == root) return;
+	// Get inode of itself and parent
 	int mynode = search(wd, ".");
 	int parent = search(wd, "..");
-	// from i_block[0] of wd->INODE: get my_ino, parent_ino
-    MINODE *pip = iget(dev, parent);
+	// Get MINODE of parent
+    MINODE *pip = iget(mtable[0].dev, parent);
     //from pip->INODE.i_block[0]: get my_name string as LOCAL
-    get_block(mtable[0].dev, ip->i_block[0], buf);
+    // Get the block from parent
+    get_block(mtable[0].dev, pip->inode.i_block[0], buf);
 	DIR *dp = (DIR *)buf;
 	char *cp = buf;
 	while (cp < buf + BLKSIZE) {
+		// Difference of ls_dir if they find their inode, break with temp intact
 		if (dp->inode == mynode) {
 			strncpy(temp, dp->name, dp->name_len);
 			temp[dp->name_len] = 0;
+			break;
 		}
 		cp += dp->rec_len;
 		dp = (DIR *)cp;
 	}
-	
-    rpwd(pip);  // recursive call rpwd() with pip
+	// Call rpwd with parent inode pointer
+    rpwd(pip);
     printf("/%s", temp);
 }
 
@@ -212,31 +239,31 @@ int main(int argc, char *argv[])
 	char line[128];
 	// In case user has a different file other than mydisk
 	if (argc > 1) device = argv[1];
-	
+	// Initiate and mount the root
 	init();
 	mount_root(device);
 	
 	// Main loop
 	while(1) 
 	{
+		// Print commands and get input
 		printf("Commands: [ls|cd|pwd|quit]\ninput command:");
 		fgets(line, 128, stdin);
 		tok = strtok(line," ");
+		// look into removing "/n"
 		//Get command token
 		if(tok) cmd = tok;
-		// Exit No code
-		if(!strcmp(cmd, "quit\n")) 
-		{
-			printf("You typed quit, goodbye!\n"); 
-			quit();
-		}
+		
+		// Exit, kept it to one line because there's nothing else to it
+		if(!strcmp(cmd, "quit\n")) quit();
+		
 		// LS
-		if(!strcmp(cmd, "ls") | (!strcmp(cmd, "ls\n")))
-		{
+		if(!strcmp(cmd, "ls") | (!strcmp(cmd, "ls\n"))) {
 			// Use ls with pathname, which is retrieved from second token
 			tok = strtok(NULL," ");
 			ls(tok);
 		}
+		
 		// CD
 		if(!strcmp(cmd, "cd\n") | (!strcmp(cmd, "cd"))) { 
 			// Also uses second token to get a pathname
@@ -244,10 +271,11 @@ int main(int argc, char *argv[])
 			cd(tok);
 		}
 		// PWD
-		if(!strcmp(cmd, "pwd\n"))
-		{
-			// Where do i get the parameter for this?
+		if(!strcmp(cmd, "pwd\n")) {
+			
 			pwd(running->cwd);
 		}
+		// Space for other commands (format below)
+		// if(!strcmp(cmd, "com\n")) { }
 	}
 }
