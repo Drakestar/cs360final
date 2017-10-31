@@ -130,7 +130,7 @@ void ls(char *pathname)
 	else {
 		// If at root pass root to ls_dir
 		if (running->cwd == root) {
-			ls_dir("/");
+			ls_dir("/\n");
 		}
 		// Not at root
 		else
