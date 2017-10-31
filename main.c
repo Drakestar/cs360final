@@ -103,25 +103,58 @@ void ls_file(int ino) {
 	printf("%d\n", ip->i_size);
 }
 
+// Given a cwd return string of cwd
+void lsHelper(MINODE *wd, char path[]) {
+	char temp[1024];
+	// Base case
+	if (wd == root) {
+		strcat(path, "/");
+		printf("path = %s\n", path);
+		return;
+	}
+	// Get inode of itself and parent
+	int mynode = search(wd, ".");
+	int parent = search(wd, "..");
+	// Get MINODE of parent
+    MINODE *pip = iget(mtable[0].dev, parent);
+    //from pip->INODE.i_block[0]: get my_name string as LOCAL
+    // Get the block from parent
+    get_block(mtable[0].dev, pip->inode.i_block[0], buf);
+	DIR *dp = (DIR *)buf;
+	char *cp = buf;
+	while (cp < buf + BLKSIZE) {
+		// Difference of ls_dir if they find their inode, break with temp intact
+		if (dp->inode == mynode) {
+			strncpy(temp, dp->name, dp->name_len);
+			temp[dp->name_len] = 0;
+			break;
+		}
+		cp += dp->rec_len;
+		dp = (DIR *)cp;
+	}
+	// Call rpwd with parent inode pointer
+	lsHelper(pip, path);
+    strcat(path, temp);
+    //printf("/%s", temp);
+    return path;
+}
+
 void ls(char *pathname) 
 {
 	//MINODE *cwd = malloc(sizeof(MINODE));
 	MINODE *mip;
 	int ino;
+	char currentpath[256];
 	char path_cp[256], temp[256];
 	// A path name was passed in so we either need Absolute or relative LS
 	if (pathname) {
 		// Absolute means that it will either work or it won't (Should check for that in ls_dir?)
 		if (pathname[0] == '/') {
 			ls_dir(pathname);
-		}
-		// Relative, find dirname starting from current location
-		// Probably needs to be changed to add on the root and everything before it
-		// Maybe have a different pwd that returns a string that pathname can be
-		// appended to?
-		// So if pwd is: /usr/doc and the pathanme is: assignment
-		// we would pass ls_dir : /usr/doc/assignment
-		else {
+		// From current directory go forward
+		} else {
+			lsHelper(running->cwd, currentpath);
+			strcat(currentpath, pathname);
 			ls_dir(pathname);
 		}
 	} 
@@ -130,37 +163,15 @@ void ls(char *pathname)
 		// If at root pass root to ls_dir
 		if (running->cwd == root) {
 			ls_dir("/\n");
-		}
-		// Not at root
-		else
-		{
-			// If we use the same "return" pwd I mentioned above, we could
-			// just pass what that returns into ls_dir (as of now i'll just comment this)
-			
-			char temp[256];
-			int mynode = search(running->cwd, ".");
-			int parent = search(running->cwd, "..");
-			// from i_block[0] of wd->INODE: get my_ino, parent_ino
-			MINODE *pip = iget(mtable[0].dev, parent);
-			//from pip->INODE.i_block[0]: get my_name string as LOCAL
-			get_block(mtable[0].dev, pip->inode.i_block[0], buf);
-			DIR *dp = (DIR *)buf;
-			char *cp = buf;
-			while (cp < buf + BLKSIZE) {
-				if (dp->inode == mynode) {
-					strncpy(temp, dp->name, dp->name_len);
-					temp[dp->name_len] = 0;
-				}
-				cp += dp->rec_len;
-				dp = (DIR *)cp;
-			}
-			printf("temp = %s\n", temp);
-			//ls_dir(temp);
+		// Otherwise not at root
+		} else {
+			lsHelper(running->cwd, currentpath);
+			ls_dir(currentpath);
 		}
 	}
 }
 
-
+// Still needs relative implementation
 void cd(char *pathname) {
 
 		// If a pathname is passed in
