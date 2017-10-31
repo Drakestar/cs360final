@@ -110,7 +110,7 @@ int iput(MINODE *mip)  // dispose of a minode[] pointed by mip
 int search(MINODE *mip, char *name)
 {
 	// If dir name is . or .. don't tok with \n
-	if (strcmp(name, ".") == 0 | !strcmp(name, "..")) printf("it's . or ..\n");
+	if (strcmp(name, ".") == 0 | !strcmp(name, "..")) printf("");
 	else name = strtok(name, "\n");
 	char temp[256];
 	char *cp;

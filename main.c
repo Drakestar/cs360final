@@ -91,10 +91,9 @@ void ls_dir(char *dirname) {
 		temp[dp->name_len] = 0;
 		printf("dirname: %s   ", temp);
 		// Advance c pointer and set dp to (DIR)cp
+		ls_file(dp->inode);
 		cp += dp->rec_len;
 		dp = (DIR *)cp;
-		// Should this go before or after the advancement?
-		ls_file(dp->inode);
 	}
 }
 
@@ -204,7 +203,7 @@ void pwd(MINODE *wd) {
 }
 
 void rpwd(MINODE *wd) {
-	char *temp;
+	char temp[256];
 	// Base case
 	if (wd == root) return;
 	// Get inode of itself and parent
