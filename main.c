@@ -155,6 +155,7 @@ void ls(char *pathname)
 		} else {
 			lsHelper(running->cwd, currentpath);
 			strcat(currentpath, pathname);
+			printf("currentpath = %s\n", currentpath);
 			ls_dir(pathname);
 		}
 	} 
@@ -173,7 +174,7 @@ void ls(char *pathname)
 
 // Still needs relative implementation
 void cd(char *pathname) {
-
+	char currentpath[256];
 		// If a pathname is passed in
 		if (pathname) {
 			// If the pathname is absolute
@@ -197,7 +198,25 @@ void cd(char *pathname) {
 				}
 			// Otherwise it's a relative pathname
 			} else {
-				
+				lsHelper(running->cwd, currentpath);
+				strcat(currentpath, pathname);
+				int ino = getino(currentpath);
+				MINODE *mip = iget(mtable[0].dev, ino);
+				printf("ino = %d\n", ino);
+				get_block(mtable[0].dev, mip->inode.i_block[0], buf);
+				DIR *dp = (DIR *)buf;
+				char *cp = buf;
+				while (cp < buf + BLKSIZE) {
+					if(mip->ino == dp->inode)
+					{
+						printf("Before cwd change: %d\n", running->cwd->ino);
+						running->cwd = mip;
+						//memcpy(running->cwd, mip, sizeof(MINODE));
+						printf("After cwd change: %d\n", running->cwd->ino);
+					}
+					cp += dp->rec_len;
+					dp = (DIR *)cp;
+				}
 			}
 		// Otherwise go to the root
 		} else {
