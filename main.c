@@ -272,15 +272,26 @@ void mkdir(char *pathname)
 	//parent must exist and is a dir //
 	
 	ino = getino(parent);
+	
+	if(ino == 0)//does parent exist?
+	{
+		return;
+	}
 	pmip = iget(ino);
 	
 	//check pmip-> INODE is a dir//
+	if(!S_ISDIR(pmip->inode))
+	{
+		printf("Parent is not a Dir\n");
+	}
 	
 	//child must not exist in parent
-	search(pmip, child);
-	
-	
-	
+	if(search(pmip, child) != -1)
+	{
+		printf("Child exists in parent\n");
+		return;
+	}
+	my_mkdir(pmip, child);
 }
 
 void my_mkdir(MINODE *mip, char name)
@@ -395,6 +406,21 @@ int main(int argc, char *argv[])
 			
 			pwd(running->cwd);
 		}
+		// mkdir
+		if(!strcmp(cmd, "mkdir\n")) {
+			
+			mkdir(running->cwd);
+		}
+		/*// creat
+		if(!strcmp(cmd, "creat\n")) {
+			
+			creat(running->cwd);
+		}
+		// rmdir
+		if(!strcmp(cmd, "rmdir\n")) {
+			
+			rmdir(running->cwd);
+		}*/
 		// Space for other commands (format below)
 		// if(!strcmp(cmd, "com\n")) { }
 	}
