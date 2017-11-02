@@ -79,7 +79,6 @@ MINODE *iget(int dev, int ino)
      return &minode[i];
 }
 
-
 int iput(MINODE *mip)  // dispose of a minode[] pointed by mip
 {
 	// Reduce Refcount
@@ -175,4 +174,106 @@ int getino(char *pathname)
 }
 
 
+int tst_bit(char *buf, int bit)
+{
+	return buf[bit/8] & (1 << (bit % 8));
+}
 
+int set_bit(char *buf, int bit)
+{
+	return buf[bit/8] |= (1 << (bit % 8));
+}
+
+int decFreeInodes(int dev)
+{
+	//Decrement free inode count in Super Block
+	get_block(dev,1, buf);
+	sp = (SUPER *) buf;
+	sp->s_free_inodes_count--;
+	put_block(dev, 1, buf);
+	
+	//Decremnt free inode count in Group Descriptor Block
+	get_block(dev,2, buf);
+	gp = (GD *) buf;
+	gd->bg_free_inodes_count--;
+	putblock(dev ,2 ,buf);
+}
+
+int ialloc(int dev)
+{
+	int i;
+	char buf[BLKSIZE];
+	
+	get_block(dev, imap, buf);
+	for(i= 0; i < ninodes; i++)
+	{
+		if(tst_bit(buf, i) == 0)
+		{
+			set_bit(buf, i);
+			put_block(dev, imap, buf);
+			decFreeInodes(dev);
+			return i+1;
+		}
+	} 
+	return 0;
+}
+
+int balloc(int dev)
+{
+int i;
+	char buf[BLKSIZE];
+	
+	get_block(dev, bmap, buf);
+	for(i= 0; i < nblocks; i++)
+	{
+		if(tst_bit(buf, i) == 0)
+		{
+			set_bit(buf, i);
+			put_block(dev, bmap, buf);
+			decFreeInodes(dev);
+			return i+1;
+		}
+	} 
+	return 0;	
+}
+
+int enter_child(MINODE *pip, int ino, char *child)
+{
+	int i;
+	
+	//for each data block of parent dir
+	for(i = 0; i < 12; i++)
+	{
+		if(pip->inode.i_blocks[i] == 0)
+		{
+			break;
+		}
+		
+		
+		
+		get_block(pip->dev, pip->inode.i_block[i], buf);
+		dp = (DIR *)buf;
+		cp = buf;
+		
+		while (cp + dp->rec_len < buf + BLKSIZE)
+		{
+			cp += dp->rec_len;
+			dp = (DIR *)cp;
+		} 
+		
+		int ideal_length = 4*( (8 + dp->name_len + 3)/4 );
+		int need_length = 4*( (8 + strlen(name) + 3)/4 );
+		
+		int remain = dp->rec_len - ideal_length;
+		
+		if(remain >= need_length)
+		{
+			//Need to enter new entry as last entry
+			// trim previous rec_len to its ideal_length
+			dp->rec_len = ideal_length;
+		}
+		
+		
+	}
+	
+}

@@ -261,6 +261,97 @@ void rpwd(MINODE *wd) {
     printf("/%s", temp);
 }
 
+void mkdir(char *pathname)
+{
+	char parent[128] = "", child[128] = "";
+	
+	//Divide pathname into dirname and basename using library functions
+	strcpy(parent,dirname(pathname));
+	strcpy(child, basename(pathname));
+	
+	//parent must exist and is a dir //
+	
+	ino = getino(parent);
+	pmip = iget(ino);
+	
+	//check pmip-> INODE is a dir//
+	
+	//child must not exist in parent
+	search(pmip, child);
+	
+	
+	
+}
+
+void my_mkdir(MINODE *mip, char name)
+{
+	//Allocate an Inode and Disk Block
+	int ino = ialloc(dev); 
+	int blk = balloc(dev); 
+	
+	
+	//Load Inode into an Minode
+	MINODE * mip = iget(dev,ino); 
+	
+	INODE * ip = &mip->inode;
+	ip->i_mode = 0x41ED; // 040755: DIR type and permissions
+	ip->i_uid = running->uid; // owner uid
+	ip->i_gid = running->gid; // group Id
+	ip->i_size = BLKSIZE; // size in bytes
+	ip->i_links_count = 2; // links count=2 because of . and ..
+	ip->i_atime = ip->i_ctime = ip->i_mtime = time(0L);
+	ip->i_blocks = 2; // LINUX: Blocks count in 512-byte chunks
+	ip->i_block[0] = bno; // new DIR has one data block
+	ip->i_block[1] to ip->i_block[14] = 0;
+	mip->dirty = 1; // mark minode dirty
+	iput(mip); // write INODE to disk
+	
+	//initialize mip->inode as a Dir Inode //
+	
+	mip->inode.i_block[0] = blk;
+	
+	//Set the rest of the i_blocks to 0 //
+	
+	
+	//mark minode dirty
+	mip->dirty = 1; 
+	
+	//write node back to disk
+	iput(mip); 
+	
+	
+	//make data block 0 of inode contain the . and .. entries
+	char buf[BLKSIZE];
+	bzero(buf, BLKSZIZE); // optional: clear buf[ ] to 0
+	DIR *dp = (DIR *)buf;
+	// make . entry
+	dp->inode = ino;
+	dp->rec_len = 12;
+	dp->name_len = 1;
+	dp->name[0] = '.';
+	// make .. entry: pino=parent DIR ino, blk=allocated block
+	dp = (char *)dp + 12;
+	dp->inode = pino;
+	dp->rec_len = BLKSIZE-12; // rec_len spans block
+	dp->name_len = 2;
+	dp->name[0] = d->name[1] = '.';
+	put_block(dev, blk, buf); // write to blk on diks
+	
+	
+	//entering newdir into parent dir
+	enter_child(pmip, ino, child);
+	
+	//increment parents inode links by 1 and mark pmip dirty
+	pmip->inode.i_links_count++;
+	pmip->dirty = 1;
+	
+	
+	
+	iput(pmip);
+}
+
+
+
 char *device = "mydisk";
 int main(int argc, char *argv[]) 
 {
