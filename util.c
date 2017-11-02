@@ -33,7 +33,8 @@ int get_block(int fd, int blk, char *buf) {
 
 int put_block(int dev, int blk, char buf[ ]) 
 {
-	printf("Nothing here yet");
+	lseek(dev, (long)(blk*BLKSIZE), SEEK_SET);
+	write(dev, buf, BLKSIZE);	
 }
 
 // load INODE of (dev,ino) into a minode[]; return mip->minode[]
@@ -98,12 +99,14 @@ int iput(MINODE *mip)  // dispose of a minode[] pointed by mip
     //disp = which INODE in block
     int disp = (mip->ino - 1) % INODES_PER_BLOCK;
 	// Need this because we add on disp to the ip
-    get_block(mip->dev, block, buf);
+    get_block(mtable[0].dev, block, buf);
     ip = (INODE *)buf + disp;
     // Wait what's the point of setting *ip just after setting ip?
-    *ip = mip->inode;         // copy INODE into *ip
+    memcpy(ip, &mip->inode, sizeof(INODE));       // copy INODE into *ip
 	// Put part of everything (also doesn't use ip?
-    put_block(mip->dev, block, buf);
+    put_block(mtable[0].dev, block, buf);
+    mip->dirty = 0;
+    return 1;
 } 
 
 int search(MINODE *mip, char *name)
@@ -147,7 +150,7 @@ int getino(char *pathname)
   MINODE *mip;
   dev = root->dev; // only ONE device so far
   printf("getino: pathname=%s\n", pathname);
-  if (strcmp(pathname, "/\n")==0) return 2; // It's the root
+  if ((strcmp(pathname, "/\n")==0) || (strcmp(pathname, "/") ==0)) return 2; // It's the root
   
   if (pathname[0]=='/') mip = iget(dev, 2); // Starts from root
   else mip = iget(dev, running->cwd->ino); // Starts from cwd
@@ -196,7 +199,7 @@ int decFreeInodes(int dev)
 	get_block(dev,2, buf);
 	gp = (GD *) buf;
 	gp->bg_free_inodes_count--;
-	putblock(dev ,2 ,buf);
+	put_block(dev ,2 ,buf);
 }
 
 int ialloc(int dev)
@@ -204,13 +207,13 @@ int ialloc(int dev)
 	int i;
 	char buf[BLKSIZE];
 	
-	get_block(dev, imap, buf);
-	for(i= 0; i < ninodes; i++)
+	get_block(dev, mtable[0].imap, buf);
+	for(i= 0; i < mtable[0].ninodes; i++)
 	{
 		if(tst_bit(buf, i) == 0)
 		{
 			set_bit(buf, i);
-			put_block(dev, imap, buf);
+			put_block(dev, mtable[0].imap, buf);
 			decFreeInodes(dev);
 			return i+1;
 		}
@@ -223,13 +226,13 @@ int balloc(int dev)
 int i;
 	char buf[BLKSIZE];
 	
-	get_block(dev, bmap, buf);
-	for(i= 0; i < nblocks; i++)
+	get_block(dev, mtable[0].bmap, buf);
+	for(i= 0; i < mtable[0].nblocks; i++)
 	{
 		if(tst_bit(buf, i) == 0)
 		{
 			set_bit(buf, i);
-			put_block(dev, bmap, buf);
+			put_block(dev, mtable[0].bmap, buf);
 			decFreeInodes(dev);
 			return i+1;
 		}
@@ -240,16 +243,15 @@ int i;
 int enter_child(MINODE *pip, int ino, char *child)
 {
 	int i;
+	char *cp;
 	
 	//for each data block of parent dir
 	for(i = 0; i < 12; i++)
 	{
-		if(pip->inode.i_blocks[i] == 0)
+		if(pip->inode.i_block[i] == 0)
 		{
 			break;
 		}
-		
-		
 		
 		get_block(pip->dev, pip->inode.i_block[i], buf);
 		dp = (DIR *)buf;
@@ -262,7 +264,7 @@ int enter_child(MINODE *pip, int ino, char *child)
 		} 
 		
 		int ideal_length = 4*( (8 + dp->name_len + 3)/4 );
-		int need_length = 4*( (8 + strlen(name) + 3)/4 );
+		int need_length = 4*( (8 + strlen(child) + 3)/4 );
 		
 		int remain = dp->rec_len - ideal_length;
 		
@@ -271,7 +273,24 @@ int enter_child(MINODE *pip, int ino, char *child)
 			//Need to enter new entry as last entry
 			// trim previous rec_len to its ideal_length
 			dp->rec_len = ideal_length;
+			cp += ideal_length;
+			dp = (DIR *)cp;
+			dp->rec_len = remain;
+			dp->name_len = strlen(child);
+			dp->inode = ialloc(pip->dev);
+			strncpy(dp->name, child, strlen(child));
+			printf("dp = %s\n", dp->name);
 		}
+		else {
+			printf("it didn't fit\n");
+			int bnumber = balloc(pip->dev);
+			dp = (DIR*)buf;
+			dp->rec_len = BLKSIZE;
+			dp->name_len = strlen(child);
+			strncpy(dp->name, child, strlen(child));
+			put_block(pip->dev, bnumber, buf);
+		}
+		put_block(pip->dev, pip->inode.i_block[i], buf);
 		
 		
 	}

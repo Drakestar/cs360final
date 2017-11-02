@@ -261,28 +261,32 @@ void rpwd(MINODE *wd) {
     printf("/%s", temp);
 }
 
-void mkdir(char *pathname)
+void Mkdir(char *pathname)
 {
-	char parent[128] = "", child[128] = "";
-	
+	char* parent, *child;
+	int ino;
+	char path[250];
+	strcpy(path, pathname);
 	//Divide pathname into dirname and basename using library functions
-	strcpy(parent,dirname(pathname));
-	strcpy(child, basename(pathname));
+	child = basename(path);
+	parent = dirname(pathname);
 	
 	//parent must exist and is a dir //
-	
+	printf("parent = %s\nchild = %s\n", pathname, child);
 	ino = getino(parent);
 	
 	if(ino == 0)//does parent exist?
 	{
+		printf("Parent doesn't exist\n");
 		return;
 	}
-	pmip = iget(ino);
+	MINODE *pmip = iget(mtable[0].dev, ino);
 	
 	//check pmip-> INODE is a dir//
-	if(!S_ISDIR(pmip->inode))
+	if(!S_ISDIR(pmip->inode.i_mode))
 	{
 		printf("Parent is not a Dir\n");
+		return;
 	}
 	
 	//child must not exist in parent
@@ -294,15 +298,16 @@ void mkdir(char *pathname)
 	my_mkdir(pmip, child);
 }
 
-void my_mkdir(MINODE *mip, char name)
+void my_mkdir(MINODE *pmip, char *name)
 {
 	//Allocate an Inode and Disk Block
-	int ino = ialloc(dev); 
-	int blk = balloc(dev); 
+	int ino = ialloc(mtable[0].dev);
+	printf("ino = %d\n", ino); 
+	int blk = balloc(mtable[0].dev); 
 	
 	
 	//Load Inode into an Minode
-	MINODE * mip = iget(dev,ino); 
+	MINODE * mip = iget(mtable[0].dev, ino); 
 	
 	INODE * ip = &mip->inode;
 	ip->i_mode = 0x41ED; // 040755: DIR type and permissions
@@ -312,28 +317,18 @@ void my_mkdir(MINODE *mip, char name)
 	ip->i_links_count = 2; // links count=2 because of . and ..
 	ip->i_atime = ip->i_ctime = ip->i_mtime = time(0L);
 	ip->i_blocks = 2; // LINUX: Blocks count in 512-byte chunks
-	ip->i_block[0] = bno; // new DIR has one data block
-	ip->i_block[1] to ip->i_block[14] = 0;
+	ip->i_block[0] = blk; // new DIR has one data block
+	for (int i = 0; i < 15; i++) {
+		ip->i_block[i] = 0;
+	}
 	mip->dirty = 1; // mark minode dirty
 	iput(mip); // write INODE to disk
 	
-	//initialize mip->inode as a Dir Inode //
-	
-	mip->inode.i_block[0] = blk;
-	
-	//Set the rest of the i_blocks to 0 //
-	
-	
-	//mark minode dirty
-	mip->dirty = 1; 
-	
-	//write node back to disk
-	iput(mip); 
 	
 	
 	//make data block 0 of inode contain the . and .. entries
 	char buf[BLKSIZE];
-	bzero(buf, BLKSZIZE); // optional: clear buf[ ] to 0
+	bzero(buf, BLKSIZE); // optional: clear buf[ ] to 0
 	DIR *dp = (DIR *)buf;
 	// make . entry
 	dp->inode = ino;
@@ -342,15 +337,15 @@ void my_mkdir(MINODE *mip, char name)
 	dp->name[0] = '.';
 	// make .. entry: pino=parent DIR ino, blk=allocated block
 	dp = (char *)dp + 12;
-	dp->inode = pino;
+	dp->inode = ino;
 	dp->rec_len = BLKSIZE-12; // rec_len spans block
 	dp->name_len = 2;
-	dp->name[0] = d->name[1] = '.';
+	dp->name[0] = dp->name[1] = '.';
 	put_block(dev, blk, buf); // write to blk on diks
 	
 	
 	//entering newdir into parent dir
-	enter_child(pmip, ino, child);
+	enter_child(pmip, ino, name);
 	
 	//increment parents inode links by 1 and mark pmip dirty
 	pmip->inode.i_links_count++;
@@ -378,7 +373,7 @@ int main(int argc, char *argv[])
 	while(1) 
 	{
 		// Print commands and get input
-		printf("Commands: [ls|cd|pwd|quit]\ninput command:");
+		printf("Commands: [ls|cd|pwd|mkdir|creat|rmdir|quit]\ninput command:");
 		fgets(line, 128, stdin);
 		tok = strtok(line," ");
 		// look into removing "/n"
@@ -407,9 +402,10 @@ int main(int argc, char *argv[])
 			pwd(running->cwd);
 		}
 		// mkdir
-		if(!strcmp(cmd, "mkdir\n")) {
-			
-			mkdir(running->cwd);
+		if(!strcmp(cmd, "mkdir")) {
+			tok = strtok(NULL, " ");
+			printf("tok = %s\n", tok);
+			Mkdir(tok);
 		}
 		/*// creat
 		if(!strcmp(cmd, "creat\n")) {
