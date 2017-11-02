@@ -195,7 +195,7 @@ int decFreeInodes(int dev)
 	//Decremnt free inode count in Group Descriptor Block
 	get_block(dev,2, buf);
 	gp = (GD *) buf;
-	gd->bg_free_inodes_count--;
+	gp->bg_free_inodes_count--;
 	putblock(dev ,2 ,buf);
 }
 
