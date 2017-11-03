@@ -298,7 +298,7 @@ int incFreeBlocks(int dev)
 	put_block(dev, 1, buf);
 	get_block(dev, 2, buf);
 	gp = (GD *)buf;
-	gp->bg_free_blocks_count;++;
+	gp->bg_free_blocks_count++;
 	put_block(dev, 2, buf);
 }
 
@@ -326,7 +326,7 @@ int bdalloc(int dev, int bno)
 	char buf[BLKSIZE];
 	if (bno > mtable[0].nblocks)
 	{ // niodes global
-		printf("inumber %d out of range\n", ino);
+		printf("inumber %d out of range\n", bno);
 		return;
 	}
 	// get inode bitmap block
@@ -338,7 +338,7 @@ int bdalloc(int dev, int bno)
 	incFreeBlocks(dev);
 }
 
-int findname(Minode * pmip, int ino, char * name)
+int findname(MINODE * pmip, int ino, char * name)
 {
 	int found = 0;
     get_block(mtable[0].dev, pmip->inode.i_block[0], buf);
