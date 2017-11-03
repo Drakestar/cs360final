@@ -412,7 +412,6 @@ void rmdir(char * pathname)
 		return;
 	}
 	
-	
 	/* get parent's ino and inode */
 	int pino = findino(); //get pino from .. entry in INODE.i_block[0]
 	MINODE * pmip = iget(mip->dev, pino);
@@ -429,6 +428,92 @@ void rmdir(char * pathname)
 	iput(mip);
 	
 	//(7). dec parent links_count by 1; mark parent pimp dirty;
+	pmip->inode.i_link_count--;
+	pmip->dirty = 1;
+	iput(pmip);
+}
+
+int rm_child(MINODE * pmip,char * name)
+{
+	int ino, tempRecLen;
+	char * temp;
+	ino = search(pmip, name);
+	
+	for(i = 0; i < 12 ; i++)
+	{
+		get_block(mtable[0].dev, pmip->inode.i_block[i], buf);
+		DIR *dp = (DIR *)buf;
+		char *cp = buf;
+		
+		
+		while (cp < buf + BLKSIZE) {
+			// Difference of ls_dir if they find their inode, break with temp intact
+			if (ino == dp->inode) {
+				break;
+			}
+			cp += dp->rec_len;
+			dp = (DIR *)cp;
+		}	
+		
+		if(dp->rec_len == BLKSIZE)
+		{
+			//deallocate dir
+			free(buf);
+			idalloc(mtable[0].dev, ino);
+			pmip->inode.i_size -= BLKSIZE;
+			
+			//move things left
+			for(; i < 11; i++)
+			{
+					get_block(dev, pmip->inode.i_block[i], buf);
+					put_block(dev, pmip->inode.i_block[i - 1], buf);
+			}
+		}
+		else if(cp + dp->rec_len == buf + BLKSIZE) //cp is the beginning position of Dir. Buf is the beginning position of first dir
+		{
+			//holding onto cur dir's len
+			tempRecLen = dp->rec_len;
+			
+			//getting previous dir
+			cp -=  dp->rec_len;
+			dp = (DIR *) cp;
+			
+			//adding the len of cur dir to previous dir
+			dp->rec_len += tempRecLen;
+			
+			//put_block
+			put_block(dev, pmip->inode.i_block[i], buf);
+			
+		}
+		else
+		{
+			//store deleted rec_len
+			tempRecLen = dp->rec_len;
+			
+			//move everythng left
+			memmove(cp, cp + dp->rec_len, buf + BLKSIZE);
+			
+			/*while (cp < buf + BLKSIZE) 
+			{
+				// Move things left
+				//copy next dir into previous spot
+				memcpy(cp, cp + dp->rec_len, dp->rec_len); //wrong size, need the size of the next dir instead of current one
+				
+				//move on to 
+				cp += dp->rec_len;
+				dp = (DIR *)cp;
+			}	*/
+
+			//add deleted rec_len to last dir
+			dp->rec_len += tempRecLen;
+			
+			//put_block
+			put_block(dev, pmip->inode.i_block[i], buf);
+			
+		}
+	}
+	pmip->dirty = 1;
+	
 	iput(pmip);
 }
 
