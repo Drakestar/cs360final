@@ -52,9 +52,12 @@ MINODE *iget(int dev, int ino)
 	
      //(1). search minode[ ] array for an item pointed by mip with the SAME (dev,ino)
      for (i=0; i < NMINODES; i++) {
-		 if (minode[i].inode.i_block[0] == iptr.i_block[0]) {
-			 minode[i].refCount++;
-			 return &minode[i];
+		 if (minode[i].refCount) {
+			  
+			if (minode[i].dev == dev && minode[i].ino == ino) {
+				minode[i].refCount++;
+				return &minode[i];
+			}
 		 }
 	 }
 	 
@@ -93,20 +96,17 @@ int iput(MINODE *mip)  // dispose of a minode[] pointed by mip
 	//(3). write INODE back to disk 
 	//Use mip->ino to compute 
 	// int seek = ((ino-1)/8 + mtable[0].iblock) * 1024 + (ino-1)%8 * 128;
-	
     //blk  = block containing THIS INODE
-    int block =  (mip->ino - 1) / INODES_PER_BLOCK + mtable;
+    int block =  (mip->ino - 1) / INODES_PER_BLOCK + 5;
     //disp = which INODE in block
     int disp = (mip->ino - 1) % INODES_PER_BLOCK;
 	// Need this because we add on disp to the ip
-    get_block(mtable[0].dev, block, buf);
+    get_block(mip->dev, block, buf);
     ip = (INODE *)buf + disp;
     // Wait what's the point of setting *ip just after setting ip?
-    memcpy(ip, &mip->inode, sizeof(INODE));       // copy INODE into *ip
+    memcpy(ip, &mip->inode, sizeof(INODE));         // copy INODE into *ip
 	// Put part of everything (also doesn't use ip?
-    put_block(mtable[0].dev, block, buf);
-    mip->dirty = 0;
-    return 1;
+    put_block(mip->dev, block, buf);
 } 
 
 int search(MINODE *mip, char *name)
@@ -146,23 +146,35 @@ int search(MINODE *mip, char *name)
 int getino(char *pathname)
 {
   int i, ino;
-  char buf[BLKSIZE];
+  char buffer[256], morebuf[256];
+  const char s[2] = "/";
   MINODE *mip;
+  char *token;
   dev = root->dev; // only ONE device so far
   printf("getino: pathname=%s\n", pathname);
   if ((strcmp(pathname, "/\n")==0) || (strcmp(pathname, "/") ==0)) return 2; // It's the root
   
-  if (pathname[0]=='/') mip = iget(dev, 2); // Starts from root
+  if (pathname[0]=='/') {
+	  mip = iget(dev, 2);
+	  memmove(pathname, pathname+1, strlen(pathname));
+  } // Starts from root
   else mip = iget(dev, running->cwd->ino); // Starts from cwd
 
-  strcpy(buf, pathname); // Copy our pathname into a buffer
-  char *token = strtok(buf, "/"); // n = number of token strings
-
-  while (token != NULL) {
+  // Copy pathname into buffer and change last char into terminating
+  strcpy(buffer, pathname);
+  buffer[strlen(pathname)-1] = '\0';
+  printf("buffer = %s\n", buffer);	
+  // Tokenize the buffer using delimiter
+  printf("%s\n", buffer);
+  token = strtok(buffer, s);
+  printf("%s\n", buffer);
+  printf("token 1 = %s\n", token);
+  while (token) {
     printf("===========================================\n");
     printf("getino: i=%d name[%d]=%s\n", i, i, token);
-	
-    ino = search(mip, token);
+	strcpy(morebuf, token);
+	printf("morebuf = %s\ntoken = %s\n", morebuf, token);
+    ino = search(mip, morebuf);
     if (ino < 0){
        iput(mip);
        printf("name %s does not exist\n", token);
@@ -170,9 +182,12 @@ int getino(char *pathname)
     }
     iput(mip);
     mip = iget(dev, ino);
-    token = strtok(NULL, "/");
+    printf("%s\n", morebuf);
+    token = strtok(NULL, s);
+    printf("next token = %s\n", token);
   }
   iput(mip);
+  printf("ino found = %d\n", ino);
   return ino;
 }
 
@@ -253,6 +268,8 @@ int enter_child(MINODE *pip, int ino, char *child)
 			break;
 		}
 		
+		
+		
 		get_block(pip->dev, pip->inode.i_block[i], buf);
 		dp = (DIR *)buf;
 		cp = buf;
@@ -277,9 +294,10 @@ int enter_child(MINODE *pip, int ino, char *child)
 			dp = (DIR *)cp;
 			dp->rec_len = remain;
 			dp->name_len = strlen(child);
-			dp->inode = ialloc(pip->dev);
+			dp->inode = ino;
 			strncpy(dp->name, child, strlen(child));
-			printf("dp = %s\n", dp->name);
+			printf("New directory info:\n");
+			printf("%s: ino = %d\n\n", dp->name, dp->inode);
 		}
 		else {
 			printf("it didn't fit\n");
@@ -288,10 +306,9 @@ int enter_child(MINODE *pip, int ino, char *child)
 			dp->rec_len = BLKSIZE;
 			dp->name_len = strlen(child);
 			strncpy(dp->name, child, strlen(child));
-			put_block(pip->dev, bnumber, buf);
+			put_block(pip->dev, bnumber, strlen(child));
 		}
 		put_block(pip->dev, pip->inode.i_block[i], buf);
-		
 		
 	}
 	

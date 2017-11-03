@@ -74,6 +74,7 @@ void quit() {
 void ls_dir(char *dirname) {
 	// Get inode number of directory
 	int ino = getino(dirname);
+	if (!ino) return;
 	// Get the actual mInode from the number
 	MINODE *mip = iget(mtable[0].dev, ino);
 	// Temp variable used for printing
@@ -100,7 +101,9 @@ void ls_dir(char *dirname) {
 void ls_file(int ino) {
 	// Using the inode pointer we COULD print out information on the directory
 	INODE *ip = iget(mtable[0].dev, ino);
-	printf("%d\n", ip->i_size);
+	printf("ino = %d   size = %d    ", ino, ip->i_size);
+	if(!S_ISDIR(ip->i_mode)) printf("FILE\n");
+	else printf("Dir\n");
 }
 
 // Given a cwd return string of cwd
@@ -304,7 +307,7 @@ void my_mkdir(MINODE *pmip, char *name)
 	int ino = ialloc(mtable[0].dev);
 	printf("ino = %d\n", ino); 
 	int blk = balloc(mtable[0].dev); 
-	
+	printf("blk = %d\n", blk);
 	
 	//Load Inode into an Minode
 	MINODE * mip = iget(mtable[0].dev, ino); 
@@ -322,6 +325,7 @@ void my_mkdir(MINODE *pmip, char *name)
 		ip->i_block[i] = 0;
 	}
 	mip->dirty = 1; // mark minode dirty
+	printf("size = %d\n", mip->inode.i_size);
 	iput(mip); // write INODE to disk
 	
 	
@@ -337,7 +341,7 @@ void my_mkdir(MINODE *pmip, char *name)
 	dp->name[0] = '.';
 	// make .. entry: pino=parent DIR ino, blk=allocated block
 	dp = (char *)dp + 12;
-	dp->inode = ino;
+	dp->inode = pmip->ino;
 	dp->rec_len = BLKSIZE-12; // rec_len spans block
 	dp->name_len = 2;
 	dp->name[0] = dp->name[1] = '.';
