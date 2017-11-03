@@ -239,7 +239,7 @@ void rpwd(MINODE *wd) {
 	char temp[256];
 	// Base case
 	if (wd == root) return;
-	// Get inode of itself and parent
+	// Get inodenumber of itself and parent
 	int mynode = search(wd, ".");
 	int parent = search(wd, "..");
 	// Get MINODE of parent
@@ -360,7 +360,79 @@ void my_mkdir(MINODE *pmip, char *name)
 	iput(pmip);
 }
 
+void rmdir(char * pathname)
+{
+	int count = 0;
+	char * name;
+	// get in-memory INODE of pathname:
+	int ino = getino(pathanme);
+	MINODE * mip = iget(dev, ino);
 
+	//verify INODE is a DIR (by INODE.i_mode field);
+	if(!S_ISDIR(mip->inode.i_mode))
+	{
+		printf("File is not a Dir\n");
+		return;
+	}
+	
+	//minode is not BUSY (refCount = 1);
+	if(mip->refcount)
+	{
+		printf("Dir is busy\n");
+	}
+	
+	//verify DIR is empty (traverse data blocks for number of entries = 2);
+	if(mip->inode.links_count == 2)
+	{
+		//traverse data blocks insearch of files
+		// Go through the blocks WE'll Be using
+		for (int i = 0; i < 12; i++) 
+		{
+			// Get the i_block of the inode
+			get_block(dev, mip->inode.i_block[i] , buf);
+			dp = (DIR *)buf;
+			cp = buf;
+			
+			while (cp < buf + BLKSIZE) 
+			{
+				if(dp->rec_len == 0) 
+				{
+					break;
+				}
+				else
+				{
+					count++;
+				}
+				cp += dp->rec_len;
+				dp = (DIR *)cp;
+			}
+		}
+	}
+	if(mip->inode.links_count > 2 || count > 0)
+	{
+		printf("Dir not empty\n");
+		return;
+	}
+	
+	
+	/* get parent's ino and inode */
+	int pino = findino(); //get pino from .. entry in INODE.i_block[0]
+	MINODE * pmip = iget(mip->dev, pino);
+ 
+	//(4). /* get name from parent DIR’s data block
+	findname(pmip, ino, name); //find name from parent DIR
+	
+	//(5). remove name from parent directory */
+	rm_child(pmip, name);
+	
+	//(6). /* deallocate its data blocks and inode */
+	bdalloc(mip->dev, mip->INODE.i_blok[0];
+	idalloc(mip->dev, mip->ino);
+	iput(mip);
+	
+	//(7). dec parent links_count by 1; mark parent pimp dirty;
+	iput(pmip);
+}
 
 char *device = "mydisk";
 int main(int argc, char *argv[]) 

@@ -191,7 +191,6 @@ int getino(char *pathname)
   return ino;
 }
 
-
 int tst_bit(char *buf, int bit)
 {
 	return buf[bit/8] & (1 << (bit % 8));
@@ -214,6 +213,21 @@ int decFreeInodes(int dev)
 	get_block(dev,2, buf);
 	gp = (GD *) buf;
 	gp->bg_free_inodes_count--;
+	put_block(dev ,2 ,buf);
+}
+
+int decFreeBlocks(int dev)
+{
+	//Decrement free inode count in Super Block
+	get_block(dev,1, buf);
+	sp = (SUPER *) buf;
+	sp->s_free_blocks_count--;
+	put_block(dev, 1, buf);
+	
+	//Decremnt free inode count in Group Descriptor Block
+	get_block(dev,2, buf);
+	gp = (GD *) buf;
+	gp->bg_free_blocks_count--;
 	put_block(dev ,2 ,buf);
 }
 
@@ -248,11 +262,101 @@ int i;
 		{
 			set_bit(buf, i);
 			put_block(dev, mtable[0].bmap, buf);
-			decFreeInodes(dev);
+			decFreeBlocks(dev);
 			return i+1;
 		}
 	} 
 	return 0;	
+}
+
+int clr_bit(char *buf, int bit) // clear bit in char buf[BLKSIZE]
+{ 
+	buf[bit/8] &= ~(1 << (bit%8)); 
+}
+
+int incFreeInodes(int dev)
+{
+	char buf[BLKSIZE];
+	// inc free inodes count in SUPER and GD
+	get_block(dev, 1, buf);
+	sp = (SUPER *)buf;
+	sp->s_free_inodes_count++;
+	put_block(dev, 1, buf);
+	get_block(dev, 2, buf);
+	gp = (GD *)buf;
+	gp->bg_free_inodes_count++;
+	put_block(dev, 2, buf);
+}
+
+int incFreeBlocks(int dev)
+{
+	char buf[BLKSIZE];
+	// inc free inodes count in SUPER and GD
+	get_block(dev, 1, buf);
+	sp = (SUPER *)buf;
+	sp->s_free_blocks_count++;
+	put_block(dev, 1, buf);
+	get_block(dev, 2, buf);
+	gp = (GD *)buf;
+	gp->bg_free_blocks_count;++;
+	put_block(dev, 2, buf);
+}
+
+int idalloc(int dev, int ino)
+{
+	int i;
+	char buf[BLKSIZE];
+	if (ino > ninodes)
+	{ // niodes global
+		printf("inumber %d out of range\n", ino);
+		return;
+	}
+	// get inode bitmap block
+	get_block(dev, imap, buf);
+	clr_bit(buf, ino-1);
+	// write buf back
+	put_block(dev, imap, buf);
+	// update free inode count in SUPER and GD
+	incFreeInodes(dev);
+}
+
+int bdalloc(int dev, int bno)
+{
+	int i;
+	char buf[BLKSIZE];
+	if (bno > mtable[0].nblocks)
+	{ // niodes global
+		printf("inumber %d out of range\n", ino);
+		return;
+	}
+	// get inode bitmap block
+	get_block(dev, mtable[0].bmap, buf);
+	clr_bit(buf, bno-1);
+	// write buf back
+	put_block(dev, mtable[0].bmap, buf);
+	// update free inode count in SUPER and GD
+	incFreeBlocks(dev);
+}
+
+int findname(Minode * pmip, int ino, char * name)
+{
+	int found = 0;
+    get_block(mtable[0].dev, pmip->inode.i_block[0], buf);
+	DIR *dp = (DIR *)buf;
+	char *cp = buf;
+	while (cp < buf + BLKSIZE) {
+		// Difference of ls_dir if they find their inode, break with temp intact
+		if (dp->inode == ino) {
+			strncpy(name, dp->name, dp->name_len);
+			name[dp->name_len] = 0;
+			found = 1;
+			break;
+		}
+		cp += dp->rec_len;
+		dp = (DIR *)cp;
+	}
+	
+	return found;
 }
 
 int enter_child(MINODE *pip, int ino, char *child)
