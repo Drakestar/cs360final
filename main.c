@@ -273,11 +273,7 @@ void rmdir(char * pathname)
 	iput(mip);
 	
 	//(7). dec parent links_count by 1; mark parent pimp dirty;
-<<<<<<< HEAD
 	pmip->inode.i_links_count--;
-=======
-	pmip->inode.i_link_count--;
->>>>>>> 4a86b9f9e288d8ce02c84d31b1bc2b55931f67ce
 	pmip->dirty = 1;
 	iput(pmip);
 }
@@ -288,11 +284,7 @@ int rm_child(MINODE * pmip,char * name)
 	char * temp;
 	ino = search(pmip, name);
 	
-<<<<<<< HEAD
 	for(int i = 0; i < 12 ; i++)
-=======
-	for(i = 0; i < 12 ; i++)
->>>>>>> 4a86b9f9e288d8ce02c84d31b1bc2b55931f67ce
 	{
 		get_block(mtable[0].dev, pmip->inode.i_block[i], buf);
 		DIR *dp = (DIR *)buf;
@@ -306,10 +298,7 @@ int rm_child(MINODE * pmip,char * name)
 			}
 			cp += dp->rec_len;
 			dp = (DIR *)cp;
-<<<<<<< HEAD
 			if (dp->rec_len == 0) return;
-=======
->>>>>>> 4a86b9f9e288d8ce02c84d31b1bc2b55931f67ce
 		}	
 		
 		if(dp->rec_len == BLKSIZE)
@@ -346,17 +335,11 @@ int rm_child(MINODE * pmip,char * name)
 		{
 			//store deleted rec_len
 			tempRecLen = dp->rec_len;
-<<<<<<< HEAD
 			int start = cp + dp->rec_len;
 			int end = buf + BLKSIZE;
 			printf("start = %d\nend =   %d\n", start, end);
 			//move everythng left
 			memmove(cp, start, end - start);
-=======
-			
-			//move everythng left
-			memmove(cp, cp + dp->rec_len, buf + BLKSIZE);
->>>>>>> 4a86b9f9e288d8ce02c84d31b1bc2b55931f67ce
 			
 			/*while (cp < buf + BLKSIZE) 
 			{
@@ -371,20 +354,12 @@ int rm_child(MINODE * pmip,char * name)
 
 			//add deleted rec_len to last dir
 			dp->rec_len += tempRecLen;
-<<<<<<< HEAD
-=======
-			
->>>>>>> 4a86b9f9e288d8ce02c84d31b1bc2b55931f67ce
 			//put_block
 			put_block(dev, pmip->inode.i_block[i], buf);
 			
 		}
 	}
 	pmip->dirty = 1;
-<<<<<<< HEAD
-=======
-	
->>>>>>> 4a86b9f9e288d8ce02c84d31b1bc2b55931f67ce
 	iput(pmip);
 }
 
