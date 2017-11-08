@@ -1,5 +1,106 @@
 #include "func.c"
 
+void myLink(char *oldfile, char *newfile) {
+	char* parent, *child;
+	char path[250];
+	
+	int oino = getino(oldfile);
+	MINODE *omip = iget(mtable[0].dev, oino);
+	if(S_ISDIR(omip->inode.i_mode))
+	{
+		printf("Oldfile is a Dir\n");
+		return;
+	}
+	parent = dirname(newfile);
+	child = b
+	
+	strcpy(path, newfile);
+	//Divide pathname into dirname and basename using library functions
+	child = basename(path);
+	parent = dirname(newfile);
+	int pino = getino(parent);
+	MINODE *pmip = iget(mtable[0].dev, pino);
+	if(!S_ISDIR(pmip->inode.i_mode))
+	{
+		printf("Parent of newfile is not a Dir\n");
+		return;
+	}
+	if (search(pmip, child) != -1) return;
+	enter_child(pmip, oino, child);
+	omip->inode.i_links_count++;
+	omip->dirty = 1;
+	iput(omip);
+	iput(pmip);
+}
+
+void myUnlink(char *file) {
+	char* parent, *child;
+	char path[250];
+	
+	int ino = getino(file);
+	MINODE *mip = iget(mtable[0].table, ino);
+	if(S_ISDIR(mip->inode.i_mode))
+	{
+		printf("Files is a Dir\n");
+		return;
+	}
+	strcpy(path, newfile);
+	child = basename(path);
+	parent = dirname(newfile);
+	int pino = getino(parent);
+	MINODE *pmip = iget(mtable[0].dev, pino);
+	rm_child(pmip, ino, child);
+	pmip->dirty = 1;
+	iput(pmip);
+	mip->inode.i_links_count--;
+	if(mip->inode.i_links_count > 0) {
+		mip->dirty = 1;
+	}
+	else {
+		// Remove Filename
+		// deallocate data blocks in inode
+		// deallocate inode;
+	}
+	iput(mip);
+}
+
+void mySymlink(char *oldfile, char *newfile) {
+	char* parent, *child;
+	char path[250];
+	// Check the oldfile exist
+	strcpy(path, newfile);
+	child = basename(path);
+	parent = dirname(newfile);
+	int pinoold = getino(parent);
+	MINODE *pmipold = iget(mtable[0].dev, pinoold);
+	if (search(pmipold, child) < 0) return;
+	// Check the new file doesn't exists
+	strcpy(path, oldfile);
+	child = basename(path);
+	parent = dirname(ile);
+	int pinoold = getino(parent);
+	MINODE *pmipnew = iget(mtable[0].dev, pinonew);
+	if (search(pmipnew, child) != -1) return;
+	// Plug in Most of Creat except change INODE to LNK type
+	
+}
+
+void myReadLink(char *file) {
+	char* parent, *child;
+	char path[250];	
+	// Check the file exist
+	strcpy(path, file);
+	child = basename(path);
+	parent = dirname(file);
+	int pino = getino(parent);
+	MINODE *pmip = iget(mtable[0].dev, pino);
+	// Verify link file
+	if (!S_ISNK(pmip->inode.i_mode)) return;
+	// While buf loop to look for filename
+	//strcpy(buf, pmip->inode.i_block[]);
+	// Print out file size i_size
+}
+
 void Mkdir(char *pathname)
 {
 	char* parent, *child;
@@ -356,6 +457,7 @@ int main(int argc, char *argv[])
 {
 	// Used for getting input
 	char line[128];
+	char *file1;
 	// In case user has a different file other than mydisk
 	if (argc > 1) device = argv[1];
 	// Initiate and mount the root
@@ -366,7 +468,7 @@ int main(int argc, char *argv[])
 	while(1) 
 	{
 		// Print commands and get input
-		printf("Commands: [ls|cd|pwd|mkdir|creat|rmdir|quit]\ninput command:");
+		printf("Commands: [ls|cd|pwd|mkdir|creat|rmdir|link|unlink|symlink|quit]\ninput command:");
 		fgets(line, 128, stdin);
 		tok = strtok(line," ");
 		// look into removing "/n"
@@ -408,6 +510,30 @@ int main(int argc, char *argv[])
 		if(!strcmp(cmd, "rmdir")) {
 			tok = strtok(NULL, " ");
 			rmdir(tok);
+		}
+		// LINK
+		if(!strcmp(cmd, "link")) {
+			tok = strtok(NULL, " ");
+			strncpy(file1, tok, sizeof(tok));
+			tok = strtok(NULL, " ");
+			myLink(file1, tok);
+		}
+		//UNLINK
+		if(!strcmp(cmd, "unlink")) {
+			tok = strtok(NULL, " ");
+			myUnlink(tok);
+		}
+		//SYMLINK
+		if(!strcmp(cmd, "symlink")) {
+			tok = strtok(NULL, " ");
+			strncpy(file1, tok, sizeof(tok));
+			tok = strtok(NULL, " ");
+			mySymlink(file1, tok);
+		}
+		//READLINK
+		if(!strcmp(cmd, "readlink")) {
+			tok = strtok(NULL, " ");
+			myReadLink(tok);
 		}
 		// Space for other commands (format below)
 		// if(!strcmp(cmd, "com\n")) { }
