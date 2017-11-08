@@ -1,5 +1,4 @@
 #include "type.h"
-
 // ALL VARIABLES
 MINODE minode[NMINODES];       
 MINODE *root;
@@ -22,6 +21,7 @@ int ninodes; // from superblock
 int bmap;    // bmap block 
 int imap;    // imap block 
 int iblock;  // inodes begin block
+// END VARIABLES
 
 /********** Functions as BEFORE ***********/
 // From the file descriptor move forward blk amount absolutely
@@ -52,13 +52,11 @@ MINODE *iget(int dev, int ino)
 	
      //(1). search minode[ ] array for an item pointed by mip with the SAME (dev,ino)
      for (i=0; i < NMINODES; i++) {
-		 if (minode[i].refCount) {
-			  
+if (minode[i].refCount) {
 			if (minode[i].dev == dev && minode[i].ino == ino) {
-				minode[i].refCount++;
+				//minode[i].refCount++;
 				return &minode[i];
-			}
-		 }
+			} }
 	 }
 	 
 	 //(2). search minode[ ] array for a mip whose refCount=0:
@@ -104,9 +102,10 @@ int iput(MINODE *mip)  // dispose of a minode[] pointed by mip
     get_block(mip->dev, block, buf);
     ip = (INODE *)buf + disp;
     // Wait what's the point of setting *ip just after setting ip?
-    memcpy(ip, &mip->inode, sizeof(INODE));         // copy INODE into *ip
+    *ip = mip->inode;       // copy INODE into *ip
 	// Put part of everything (also doesn't use ip?
     put_block(mip->dev, block, buf);
+    mip->dirty = 0;
 } 
 
 int search(MINODE *mip, char *name)
@@ -146,12 +145,13 @@ int search(MINODE *mip, char *name)
 int getino(char *pathname)
 {
   int i, ino;
-  char buffer[256], morebuf[256];
+  char buffer[256], morebuf[256], *token, *save1;
   const char s[2] = "/";
   MINODE *mip;
-  char *token;
   dev = root->dev; // only ONE device so far
+  // Print what we're trying to get the pathname of
   printf("getino: pathname=%s\n", pathname);
+  // If the string is the root
   if ((strcmp(pathname, "/\n")==0) || (strcmp(pathname, "/") ==0)) return 2; // It's the root
   
   if (pathname[0]=='/') {
@@ -159,21 +159,14 @@ int getino(char *pathname)
 	  memmove(pathname, pathname+1, strlen(pathname));
   } // Starts from root
   else mip = iget(dev, running->cwd->ino); // Starts from cwd
-
   // Copy pathname into buffer and change last char into terminating
   strcpy(buffer, pathname);
-  buffer[strlen(pathname)-1] = '\0';
-  printf("buffer = %s\n", buffer);	
-  // Tokenize the buffer using delimiter
-  printf("%s\n", buffer);
-  token = strtok(buffer, s);
-  printf("%s\n", buffer);
-  printf("token 1 = %s\n", token);
+  // Tokenize with save state to prevent search from ruining the token
+  token = strtok_r(buffer, s, &save1);
   while (token) {
     printf("===========================================\n");
     printf("getino: i=%d name[%d]=%s\n", i, i, token);
 	strcpy(morebuf, token);
-	printf("morebuf = %s\ntoken = %s\n", morebuf, token);
     ino = search(mip, morebuf);
     if (ino < 0){
        iput(mip);
@@ -183,8 +176,7 @@ int getino(char *pathname)
     iput(mip);
     mip = iget(dev, ino);
     printf("%s\n", morebuf);
-    token = strtok(NULL, s);
-    printf("next token = %s\n", token);
+    token = strtok_r(NULL, s, &save1);
   }
   iput(mip);
   printf("ino found = %d\n", ino);
@@ -306,11 +298,13 @@ int idalloc(int dev, int ino)
 {
 	int i;
 	char buf[BLKSIZE];
-	if (ino > ninodes)
-	{ // niodes global
-		printf("inumber %d out of range\n", ino);
-		return;
-	}
+	//get_block(mtable[0].dev, mtable[0].imap, buf);
+	
+	//if (ino > mtable[0].ninodes)
+	//~ { // niodes global
+		//~ printf("inumber %d out of range\n", ino);
+		//~ return;
+	//~ }
 	// get inode bitmap block
 	get_block(dev, imap, buf);
 	clr_bit(buf, ino-1);
@@ -383,6 +377,7 @@ int enter_child(MINODE *pip, int ino, char *child)
 			cp += dp->rec_len;
 			dp = (DIR *)cp;
 		} 
+		cp = (char *)dp;
 		
 		int ideal_length = 4*( (8 + dp->name_len + 3)/4 );
 		int need_length = 4*( (8 + strlen(child) + 3)/4 );
@@ -399,6 +394,7 @@ int enter_child(MINODE *pip, int ino, char *child)
 			dp->rec_len = remain;
 			dp->name_len = strlen(child);
 			dp->inode = ino;
+			dp->file_type = EXT2_FT_DIR;
 			strncpy(dp->name, child, strlen(child));
 			printf("New directory info:\n");
 			printf("%s: ino = %d\n\n", dp->name, dp->inode);
