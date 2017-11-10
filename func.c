@@ -126,9 +126,10 @@ void ls_dir(char *dirname) {
 		// Copy directory name to temp variable and print
 		strncpy(temp, dp->name, dp->name_len);
 		temp[dp->name_len] = 0;
-		printf("dirname: %s   ", temp);
-		// Advance c pointer and set dp to (DIR)cp
 		ls_file(dp->inode);
+		printf("%s\n", temp);
+		// Advance c pointer and set dp to (DIR)cp
+		
 		cp += dp->rec_len;
 		dp = (DIR *)cp;
 	}
@@ -153,9 +154,10 @@ void rel_dir(int ino) {
 		// Copy directory name to temp variable and print
 		strncpy(temp, dp->name, dp->name_len);
 		temp[dp->name_len] = 0;
-		printf("dirname: %s   ", temp);
-		// Advance c pointer and set dp to (DIR)cp
 		ls_file(dp->inode);
+		printf("%s\n", temp);
+		// Advance c pointer and set dp to (DIR)cp
+		
 		cp += dp->rec_len;
 		dp = (DIR *)cp;
 	}
@@ -164,9 +166,9 @@ void rel_dir(int ino) {
 void ls_file(int ino) {
 	// Using the inode pointer we COULD print out information on the directory
 	INODE *ip = iget(mtable[0].dev, ino);
-	printf("       ino = %d   size = %d    ", ino, ip->i_size);
-	if(!S_ISDIR(ip->i_mode)) printf("FILE\n");
-	else printf("DIR\n");
+	printf("ino = %d     ", ino);
+	if(!S_ISDIR(ip->i_mode)) printf("FILE:  ");
+	else printf("DIR:  ");
 }
 
 

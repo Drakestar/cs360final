@@ -1,6 +1,7 @@
 #include "func.c"
 
 void myLink(char *oldfile, char *newfile) {
+	printf("old = %s\nnew = %s\n", oldfile, newfile);
 	char* parent, *child;
 	char path[250];
 	
@@ -12,7 +13,7 @@ void myLink(char *oldfile, char *newfile) {
 		return;
 	}
 	parent = dirname(newfile);
-	child = b
+	child = basename(path);
 	
 	strcpy(path, newfile);
 	//Divide pathname into dirname and basename using library functions
@@ -38,15 +39,15 @@ void myUnlink(char *file) {
 	char path[250];
 	
 	int ino = getino(file);
-	MINODE *mip = iget(mtable[0].table, ino);
+	MINODE *mip = iget(mtable[0].dev, ino);
 	if(S_ISDIR(mip->inode.i_mode))
 	{
 		printf("Files is a Dir\n");
 		return;
 	}
-	strcpy(path, newfile);
+	strcpy(path, file);
 	child = basename(path);
-	parent = dirname(newfile);
+	parent = dirname(file);
 	int pino = getino(parent);
 	MINODE *pmip = iget(mtable[0].dev, pino);
 	rm_child(pmip, ino, child);
@@ -67,20 +68,23 @@ void myUnlink(char *file) {
 void mySymlink(char *oldfile, char *newfile) {
 	char* parent, *child;
 	char path[250];
+	
 	// Check the oldfile exist
 	strcpy(path, newfile);
 	child = basename(path);
 	parent = dirname(newfile);
 	int pinoold = getino(parent);
-	MINODE *pmipold = iget(mtable[0].dev, pinoold);
-	if (search(pmipold, child) < 0) return;
+	MINODE *pmipOld = iget(mtable[0].dev, pinoold);
+	if (search(pmipOld, child) < 0) return;
+	
 	// Check the new file doesn't exists
 	strcpy(path, oldfile);
 	child = basename(path);
-	parent = dirname(ile);
-	int pinoold = getino(parent);
-	MINODE *pmipnew = iget(mtable[0].dev, pinonew);
-	if (search(pmipnew, child) != -1) return;
+	parent = dirname(oldfile);
+	int pinonew = getino(parent);
+	MINODE *pmipNew = iget(mtable[0].dev, pinonew);
+	if (search(pmipNew, child) != -1) return;
+	
 	// Plug in Most of Creat except change INODE to LNK type
 	
 }
@@ -95,7 +99,7 @@ void myReadLink(char *file) {
 	int pino = getino(parent);
 	MINODE *pmip = iget(mtable[0].dev, pino);
 	// Verify link file
-	if (!S_ISNK(pmip->inode.i_mode)) return;
+	if (!S_ISLNK(pmip->inode.i_mode)) return;
 	// While buf loop to look for filename
 	//strcpy(buf, pmip->inode.i_block[]);
 	// Print out file size i_size
@@ -457,7 +461,7 @@ int main(int argc, char *argv[])
 {
 	// Used for getting input
 	char line[128];
-	char *file1;
+	char file1[128];
 	// In case user has a different file other than mydisk
 	if (argc > 1) device = argv[1];
 	// Initiate and mount the root
@@ -474,6 +478,7 @@ int main(int argc, char *argv[])
 		// look into removing "/n"
 		//Get command token
 		if(tok) cmd = tok;
+		printf("command: %s\n", cmd);
 		
 		// Exit, kept it to one line because there's nothing else to it
 		if(!strcmp(cmd, "quit\n")) quit();
