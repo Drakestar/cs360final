@@ -234,8 +234,8 @@ int ialloc(int dev)
 		if(tst_bit(buf, i) == 0)
 		{
 			set_bit(buf, i);
-			put_block(dev, mtable[0].imap, buf);
 			decFreeInodes(dev);
+			put_block(dev, mtable[0].imap, buf);
 			return i+1;
 		}
 	} 
@@ -298,14 +298,7 @@ int idalloc(int dev, int ino)
 {
 	int i;
 	char buf[BLKSIZE];
-	//get_block(mtable[0].dev, mtable[0].imap, buf);
-	
-	//if (ino > mtable[0].ninodes)
-	//~ { // niodes global
-		//~ printf("inumber %d out of range\n", ino);
-		//~ return;
-	//~ }
-	// get inode bitmap block
+
 	get_block(dev, imap, buf);
 	clr_bit(buf, ino-1);
 	// write buf back
@@ -366,12 +359,12 @@ int enter_child(MINODE *pip, int ino, char *child)
 			break;
 		}
 		
-		
-		
+		//getting parent block
 		get_block(pip->dev, pip->inode.i_block[i], buf);
 		dp = (DIR *)buf;
 		cp = buf;
 		
+		//finding the last directory
 		while (cp + dp->rec_len < buf + BLKSIZE)
 		{
 			cp += dp->rec_len;
@@ -379,22 +372,32 @@ int enter_child(MINODE *pip, int ino, char *child)
 		} 
 		cp = (char *)dp;
 		
+		//ideal length is the length that the last dir needs
 		int ideal_length = 4*( (8 + dp->name_len + 3)/4 );
+		//the need legth is the length that is needed for the new dir
 		int need_length = 4*( (8 + strlen(child) + 3)/4 );
 		
+		//the remain is difference between the last directory's length and it's ideal length
 		int remain = dp->rec_len - ideal_length;
 		
+		//if the remian is less than the need length then there isnt enough room for the directorys
 		if(remain >= need_length)
 		{
-			//Need to enter new entry as last entry
 			// trim previous rec_len to its ideal_length
 			dp->rec_len = ideal_length;
+			
+			//move the pointer by the ideal_length in order to be at the starting position for the new directory
 			cp += ideal_length;
 			dp = (DIR *)cp;
+			
+			//set the length of new dir to the remain
 			dp->rec_len = remain;
+			//set the name, inode number, and the file type.
 			dp->name_len = strlen(child);
 			dp->inode = ino;
 			dp->file_type = EXT2_FT_DIR;
+			
+			//display the name of the new directory along with it's inode number
 			strncpy(dp->name, child, strlen(child));
 			printf("New directory info:\n");
 			printf("%s: ino = %d\n\n", dp->name, dp->inode);
@@ -409,7 +412,6 @@ int enter_child(MINODE *pip, int ino, char *child)
 			put_block(pip->dev, bnumber, strlen(child));
 		}
 		put_block(pip->dev, pip->inode.i_block[i], buf);
-		
 	}
 	
 }

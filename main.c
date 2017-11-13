@@ -12,13 +12,13 @@ void myLink(char *oldfile, char *newfile) {
 		printf("Oldfile is a Dir\n");
 		return;
 	}
-	parent = dirname(newfile);
-	child = basename(path);
 	
 	strcpy(path, newfile);
 	//Divide pathname into dirname and basename using library functions
 	child = basename(path);
 	parent = dirname(newfile);
+	
+	
 	int pino = getino(parent);
 	MINODE *pmip = iget(mtable[0].dev, pino);
 	if(!S_ISDIR(pmip->inode.i_mode))
@@ -26,7 +26,7 @@ void myLink(char *oldfile, char *newfile) {
 		printf("Parent of newfile is not a Dir\n");
 		return;
 	}
-	if (search(pmip, child) != -1) return;
+	if (search(pmip, child) == -1) return;
 	enter_child(pmip, oino, child);
 	omip->inode.i_links_count++;
 	omip->dirty = 1;
@@ -42,7 +42,7 @@ void myUnlink(char *file) {
 	MINODE *mip = iget(mtable[0].dev, ino);
 	if(S_ISDIR(mip->inode.i_mode))
 	{
-		printf("Files is a Dir\n");
+		printf("File is a Dir\n");
 		return;
 	}
 	strcpy(path, file);
@@ -59,7 +59,9 @@ void myUnlink(char *file) {
 	}
 	else {
 		// Remove Filename
+		idalloc(minode[0].dev, mip->inode);
 		// deallocate data blocks in inode
+		bdalloc(minode[0].dev, mip->inode);
 		// deallocate inode;
 	}
 	iput(mip);
@@ -284,85 +286,104 @@ void rmdir(char * pathname)
 
 int rm_child(MINODE * pmip,char * name)
 {
-	int ino, tempRecLen;
+	int ino, tempRecLen, prevDirLen;
 	char * temp;
+	int found = 0;
+	
+	//find the child's indoe number
 	ino = search(pmip, name);
 	
+	
+	//got through each of the parent's blocks
 	for(int i = 0; i < 12 ; i++)
 	{
+		//get the parent block
 		get_block(mtable[0].dev, pmip->inode.i_block[i], buf);
 		DIR *dp = (DIR *)buf;
 		char *cp = buf;
 		
-		
+		//search through directories by inode number
 		while (cp < buf + BLKSIZE) {
 			// Difference of ls_dir if they find their inode, break with temp intact
 			if (ino == dp->inode) {
+				found = 1;
 				break;
 			}
+			prevDirLen = dp->rec_len;
 			cp += dp->rec_len;
 			dp = (DIR *)cp;
 			if (dp->rec_len == 0) return;
 		}	
+		//if the directory is found jump out break out of for loop
+		if(found)
+		{
+			break;
+		}
+	}
+	//If the directory is the only child
+	if(dp->rec_len == BLKSIZE)
+	{
+		//deallocate dir
+		free(buf);
+		idalloc(mtable[0].dev, ino);
+		pmip->inode.i_size -= BLKSIZE;
+			
+		//move parent's blocks left
+		for(; i < 11; i++)
+		{
+				get_block(dev, pmip->inode.i_block[i], buf);
+				put_block(dev, pmip->inode.i_block[i - 1], buf);
+		}
+	}
+	//If the directroy is the last directory
+	else if(cp + dp->rec_len == buf + BLKSIZE) //cp is the beginning position of the dir. Buf is the beginning position of first dir
+	{
+		//holding onto cur dir's len
+		tempRecLen = dp->rec_len;
 		
-		if(dp->rec_len == BLKSIZE)
+		//getting previous dir
+		
+		//Before: cp -=  dp->rec_len;
+		
+		//NEED TO SUBTRACT THE PREVIOUS DIRECTORIES LENGTH NOT CURRENT DIRECTORY
+		cp -= prevDirLen;
+		dp = (DIR *) cp;
+			
+		//adding the len of cur dir to previous dir
+		dp->rec_len += tempRecLen;
+			
+		//put_block
+		put_block(dev, pmip->inode.i_block[i], buf);
+	}
+	else
+	{
+		//store deleted rec_len
+		tempRecLen = dp->rec_len;
+		int start = cp + dp->rec_len;
+		int end = buf + BLKSIZE;
+		printf("start = %d\nend =   %d\n", start, end);
+		//move everythng left
+		memmove(cp, start, end - start); //TAKES IN POINTERS FOR FIRST AND SECOND ARGUEMENTS
+		
+		/*while (cp < buf + BLKSIZE) 
 		{
-			//deallocate dir
-			free(buf);
-			idalloc(mtable[0].dev, ino);
-			pmip->inode.i_size -= BLKSIZE;
-			
-			//move things left
-			for(; i < 11; i++)
-			{
-					get_block(dev, pmip->inode.i_block[i], buf);
-					put_block(dev, pmip->inode.i_block[i - 1], buf);
-			}
-		}
-		else if(cp + dp->rec_len == buf + BLKSIZE) //cp is the beginning position of Dir. Buf is the beginning position of first dir
-		{
-			//holding onto cur dir's len
-			tempRecLen = dp->rec_len;
-			
-			//getting previous dir
-			cp -=  dp->rec_len;
-			dp = (DIR *) cp;
-			
-			//adding the len of cur dir to previous dir
-			dp->rec_len += tempRecLen;
-			
-			//put_block
-			put_block(dev, pmip->inode.i_block[i], buf);
-			
-		}
-		else
-		{
-			//store deleted rec_len
-			tempRecLen = dp->rec_len;
-			int start = cp + dp->rec_len;
-			int end = buf + BLKSIZE;
-			printf("start = %d\nend =   %d\n", start, end);
-			//move everythng left
-			memmove(cp, start, end - start);
-			
-			/*while (cp < buf + BLKSIZE) 
-			{
-				// Move things left
-				//copy next dir into previous spot
-				memcpy(cp, cp + dp->rec_len, dp->rec_len); //wrong size, need the size of the next dir instead of current one
+			// Move things left
+			//copy next dir into previous spot
+			memcpy(cp, cp + dp->rec_len, dp->rec_len); //wrong size, need the size of the next dir instead of current one
 				
-				//move on to 
-				cp += dp->rec_len;
-				dp = (DIR *)cp;
-			}	*/
+			//move on to 
+			cp += dp->rec_len;
+			dp = (DIR *)cp;
+		}	*/
 
-			//add deleted rec_len to last dir
-			dp->rec_len += tempRecLen;
-			//put_block
-			put_block(dev, pmip->inode.i_block[i], buf);
+		//add deleted rec_len to last dir
+		dp->rec_len += tempRecLen;
+		//put_block
+		put_block(dev, pmip->inode.i_block[i], buf);
 			
 		}
 	}
+	//make parent's dirty propery true
 	pmip->dirty = 1;
 	iput(pmip);
 }
@@ -454,7 +475,6 @@ void my_creat(MINODE *pmip, char *name) {
 	
 	iput(pmip);
 }
-
 
 char *device = "mydisk";
 int main(int argc, char *argv[]) 
