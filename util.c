@@ -351,6 +351,9 @@ int enter_child(MINODE *pip, int ino, char *child)
 	int i;
 	char *cp;
 	
+	// New child, and show off new ino
+	printf("Child = %s\nnew ino = %d\n", child, ino);
+	
 	//for each data block of parent dir
 	for(i = 0; i < 12; i++)
 	{

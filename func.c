@@ -126,6 +126,8 @@ void ls_dir(char *dirname) {
 		// Copy directory name to temp variable and print
 		strncpy(temp, dp->name, dp->name_len);
 		temp[dp->name_len] = 0;
+		if (dp->rec_len == 0) return;
+		if (dp->name_len == 0) break;
 		ls_file(dp->inode);
 		printf("%s\n", temp);
 		// Advance c pointer and set dp to (DIR)cp
@@ -154,6 +156,8 @@ void rel_dir(int ino) {
 		// Copy directory name to temp variable and print
 		strncpy(temp, dp->name, dp->name_len);
 		temp[dp->name_len] = 0;
+		if (dp->rec_len == 0) break;
+		if (dp->name_len == 0) break;
 		ls_file(dp->inode);
 		printf("%s\n", temp);
 		// Advance c pointer and set dp to (DIR)cp

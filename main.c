@@ -1,32 +1,50 @@
 #include "func.c"
 
+// PWD in dir causes segfault
+// Mkdir doesn't actually make a dir
+// symlink
+// readlink
+// quit doesn't quite save things
+// add chmod
+// add utime
+
+
 void myLink(char *oldfile, char *newfile) {
+	if (!oldfile || !newfile) return;
 	printf("old = %s\nnew = %s\n", oldfile, newfile);
 	char* parent, *child;
 	char path[250];
+	int oino, pino;
+	MINODE *omip, *pmip;
 	
-	int oino = getino(oldfile);
-	MINODE *omip = iget(mtable[0].dev, oino);
-	if(S_ISDIR(omip->inode.i_mode))
-	{
+
+	// Find the oldfiles Inode and ensure it is a file
+	oino = getino(oldfile);
+	omip = iget(mtable[0].dev, oino);
+	if(S_ISDIR(omip->inode.i_mode)) {
 		printf("Oldfile is a Dir\n");
 		return;
 	}
 	
+	// Used for entering child
 	strcpy(path, newfile);
-	//Divide pathname into dirname and basename using library functions
-	child = basename(path);
 	parent = dirname(newfile);
+
 	
 	
-	int pino = getino(parent);
-	MINODE *pmip = iget(mtable[0].dev, pino);
-	if(!S_ISDIR(pmip->inode.i_mode))
-	{
+	pino = getino(parent);
+	pmip = iget(mtable[0].dev, pino);
+
+	child = basename(path);
+	printf("child = %s\nparent%s\n", child, parent);
+	
+
+	if(!S_ISDIR(pmip->inode.i_mode)) {
 		printf("Parent of newfile is not a Dir\n");
 		return;
 	}
-	if (search(pmip, child) == -1) return;
+	// Ensure the child exists within the parent dir
+	if (search(pmip, child) != -1) return;
 	enter_child(pmip, oino, child);
 	omip->inode.i_links_count++;
 	omip->dirty = 1;
@@ -37,33 +55,45 @@ void myLink(char *oldfile, char *newfile) {
 void myUnlink(char *file) {
 	char* parent, *child;
 	char path[250];
+	int ino, pino;
+	MINODE *mip, *pmip;
 	
-	int ino = getino(file);
-	MINODE *mip = iget(mtable[0].dev, ino);
+	// Get the inode number of the file we're unlinking
+	ino = getino(file);
+	mip = iget(mtable[0].dev, ino);
+	// Check that the file is not a dir
 	if(S_ISDIR(mip->inode.i_mode))
 	{
 		printf("File is a Dir\n");
 		return;
 	}
+	//Get basename and pathname
 	strcpy(path, file);
 	child = basename(path);
 	parent = dirname(file);
-	int pino = getino(parent);
-	MINODE *pmip = iget(mtable[0].dev, pino);
-	rm_child(pmip, ino, child);
-	pmip->dirty = 1;
-	iput(pmip);
+	// Get the inode of the parent file to check whether it is still dirty
+	pino = getino(parent);
+	pmip = iget(mtable[0].dev, pino);
+	printf("Child in unlink: %s\n", child);
+	printf("mip ino = %d\n", mip->ino);
+	rm_child(pmip, child);
+	//pmip->dirty = 1;
+	//Put the parent mip
+	//iput(pmip);
+	printf("mip ino = %d\n", mip->ino);
 	mip->inode.i_links_count--;
 	if(mip->inode.i_links_count > 0) {
 		mip->dirty = 1;
 	}
 	else {
-		// Remove Filename
-		idalloc(minode[0].dev, mip->inode);
+		idalloc(minode[0].dev, mip->ino);
 		// deallocate data blocks in inode
-		bdalloc(minode[0].dev, mip->inode);
+		for (int i = 0; i < 12; i++) bdalloc(mip->dev, mip->inode.i_block[0]);
 		// deallocate inode;
+		mip->dirty = 0;
 	}
+	printf("mip ino = %d\n", mip->ino);
+	// Then put the minode
 	iput(mip);
 }
 
@@ -71,7 +101,7 @@ void mySymlink(char *oldfile, char *newfile) {
 	char* parent, *child;
 	char path[250];
 	
-	// Check the oldfile exist
+	// Check the oldfile exists
 	strcpy(path, newfile);
 	child = basename(path);
 	parent = dirname(newfile);
@@ -284,28 +314,25 @@ void rmdir(char * pathname)
 	iput(pmip);
 }
 
-int rm_child(MINODE * pmip,char * name)
-{
-	int ino, tempRecLen, prevDirLen;
-	char * temp;
-	int found = 0;
-	
-	//find the child's indoe number
+int rm_child(MINODE * pmip, char * name) {
+	//got through each of the parent's blocks
+	int ino, tempRecLen, found = 0, i, prevDirLen;
+	char *cp, temp[256];
 	ino = search(pmip, name);
 	
-	
-	//got through each of the parent's blocks
-	for(int i = 0; i < 12 ; i++)
-	{
+	for(i = 0; i < 12 ; i++) {
 		//get the parent block
 		get_block(mtable[0].dev, pmip->inode.i_block[i], buf);
-		DIR *dp = (DIR *)buf;
-		char *cp = buf;
+		
+		dp = (DIR *)buf;
+		cp = buf;
 		
 		//search through directories by inode number
 		while (cp < buf + BLKSIZE) {
 			// Difference of ls_dir if they find their inode, break with temp intact
-			if (ino == dp->inode) {
+			strncpy(temp, dp->name, dp->name_len);
+			temp[dp->name_len] = 0;
+			if (!strcmp(name, temp)) {
 				found = 1;
 				break;
 			}
@@ -315,22 +342,18 @@ int rm_child(MINODE * pmip,char * name)
 			if (dp->rec_len == 0) return;
 		}	
 		//if the directory is found jump out break out of for loop
-		if(found)
-		{
-			break;
-		}
+		if (found) break;	
 	}
+	
 	//If the directory is the only child
-	if(dp->rec_len == BLKSIZE)
-	{
+	if(dp->rec_len == BLKSIZE) {
 		//deallocate dir
 		free(buf);
 		idalloc(mtable[0].dev, ino);
 		pmip->inode.i_size -= BLKSIZE;
 			
 		//move parent's blocks left
-		for(; i < 11; i++)
-		{
+		for(; i < 11; i++) {
 				get_block(dev, pmip->inode.i_block[i], buf);
 				put_block(dev, pmip->inode.i_block[i - 1], buf);
 		}
@@ -359,33 +382,37 @@ int rm_child(MINODE * pmip,char * name)
 	{
 		//store deleted rec_len
 		tempRecLen = dp->rec_len;
-		int start = cp + dp->rec_len;
-		int end = buf + BLKSIZE;
-		printf("start = %d\nend =   %d\n", start, end);
+		u8 *start = cp + dp->rec_len;
+		u8 *end = buf + BLKSIZE;
+		printf("start = %d\nend =   %d\n", start, end);	
+		
 		//move everythng left
 		memmove(cp, start, end - start); //TAKES IN POINTERS FOR FIRST AND SECOND ARGUEMENTS
-		
-		/*while (cp < buf + BLKSIZE) 
+
+
+		dp = (DIR *)cp;
+		while(cp + tempRecLen < buf + BLKSIZE)
 		{
-			// Move things left
-			//copy next dir into previous spot
-			memcpy(cp, cp + dp->rec_len, dp->rec_len); //wrong size, need the size of the next dir instead of current one
-				
-			//move on to 
+			if (dp->name_len == 0) break;
+			printf("dp name = %s\n", dp->name);
+			printf("dp name len = %d\n", dp->name_len);
 			cp += dp->rec_len;
 			dp = (DIR *)cp;
-		}	*/
-
+			
+		}	
+		
 		//add deleted rec_len to last dir
 		dp->rec_len += tempRecLen;
+	
+		
 		//put_block
-		put_block(dev, pmip->inode.i_block[i], buf);
-			
-		}
+		put_block(mtable[0].dev, pmip->inode.i_block[i], buf);
+		
 	}
 	//make parent's dirty propery true
 	pmip->dirty = 1;
 	iput(pmip);
+
 }
 
 void Creat(char *pathname) {
@@ -511,52 +538,52 @@ int main(int argc, char *argv[])
 		}
 		
 		// CD
-		if(!strcmp(cmd, "cd\n") | (!strcmp(cmd, "cd"))) { 
+		else if(!strcmp(cmd, "cd\n") | (!strcmp(cmd, "cd"))) { 
 			// Also uses second token to get a pathname
 			tok = strtok(NULL," ");
 			cd(tok);
 		}
 		// PWD
-		if(!strcmp(cmd, "pwd\n")) {
+		else if(!strcmp(cmd, "pwd\n")) {
 			
 			pwd(running->cwd);
 		}
 		// mkdir
-		if(!strcmp(cmd, "mkdir")) {
+		else if(!strcmp(cmd, "mkdir")) {
 			tok = strtok(NULL, " ");
 			Mkdir(tok);
 		}
 		// creat
-		if(!strcmp(cmd, "creat")) {
+		else if(!strcmp(cmd, "creat")) {
 			tok = strtok(NULL, " ");
 			Creat(tok);
 		}
 		// rmdir
-		if(!strcmp(cmd, "rmdir")) {
+		else if(!strcmp(cmd, "rmdir")) {
 			tok = strtok(NULL, " ");
 			rmdir(tok);
 		}
 		// LINK
-		if(!strcmp(cmd, "link")) {
+		else if(!strcmp(cmd, "link")) {
 			tok = strtok(NULL, " ");
 			strncpy(file1, tok, sizeof(tok));
 			tok = strtok(NULL, " ");
 			myLink(file1, tok);
 		}
 		//UNLINK
-		if(!strcmp(cmd, "unlink")) {
+		else if(!strcmp(cmd, "unlink")) {
 			tok = strtok(NULL, " ");
 			myUnlink(tok);
 		}
 		//SYMLINK
-		if(!strcmp(cmd, "symlink")) {
+		else if(!strcmp(cmd, "symlink")) {
 			tok = strtok(NULL, " ");
 			strncpy(file1, tok, sizeof(tok));
 			tok = strtok(NULL, " ");
 			mySymlink(file1, tok);
 		}
 		//READLINK
-		if(!strcmp(cmd, "readlink")) {
+		else if(!strcmp(cmd, "readlink")) {
 			tok = strtok(NULL, " ");
 			myReadLink(tok);
 		}
