@@ -12,6 +12,7 @@ INODE *ip;
 char buf[BLKSIZE];
 char *cmd;
 char *tok;
+char *device = "mydisk";
 
 int dev;
 int fd;
@@ -26,18 +27,23 @@ int iblock;  // inodes begin block
 /********** Functions as BEFORE ***********/
 // From the file descriptor move forward blk amount absolutely
 // Then read the next BLKSIZE amount into the buffer
+// GET BLOCK
+// Purpose: 
 int get_block(int fd, int blk, char *buf) {
   lseek(fd, (long)blk*BLKSIZE, SEEK_SET);
   return read(fd, buf, BLKSIZE);
 }
 
+// PUT BLOCK
+// Purpose: 
 int put_block(int dev, int blk, char buf[ ]) 
 {
 	lseek(dev, (long)(blk*BLKSIZE), SEEK_SET);
 	write(dev, buf, BLKSIZE);	
 }
 
-// load INODE of (dev,ino) into a minode[]; return mip->minode[]
+// INODE GET
+// Purpose: 
 MINODE *iget(int dev, int ino)
 {
 	// SEEK VALUE
@@ -81,6 +87,8 @@ if (minode[i].refCount) {
      return &minode[i];
 }
 
+// INODE PUT
+// Purpose:
 int iput(MINODE *mip)  // dispose of a minode[] pointed by mip
 {
 	// Reduce Refcount
@@ -108,6 +116,8 @@ int iput(MINODE *mip)  // dispose of a minode[] pointed by mip
     mip->dirty = 0;
 } 
 
+// SEARCH
+// Purpose: Search a directory for a specific entity.
 int search(MINODE *mip, char *name)
 {
 	// If dir name is . or .. don't tok with \n
@@ -118,15 +128,13 @@ int search(MINODE *mip, char *name)
 	DIR *dp;
 	int blk;
 	// Go through the blocks WE'll Be using
-    for (int i = 0; i < 12; i++) 
-    {
+    for (int i = 0; i < 12; i++) {
 		// Get the i_block of the inode
 		get_block(dev, mip->inode.i_block[i] , buf);
 		dp = (DIR *)buf;
 		cp = buf;
 		
-		while (cp < buf + BLKSIZE) 
-		{
+		while (cp < buf + BLKSIZE) {
 			strncpy(temp, dp->name, dp->name_len);
 			temp[dp->name_len] = 0;
 			// Found the right directory return it's inode
@@ -142,6 +150,8 @@ int search(MINODE *mip, char *name)
 	return -1;
 }
 
+// GET INO
+// Purpose: From a pathname get the ino value.
 int getino(char *pathname)
 {
   int i, ino;
@@ -183,16 +193,22 @@ int getino(char *pathname)
   return ino;
 }
 
+// TEST BIT
+// Purpose:
 int tst_bit(char *buf, int bit)
 {
 	return buf[bit/8] & (1 << (bit % 8));
 }
 
+// SET BIT
+// Purpose:
 int set_bit(char *buf, int bit)
 {
 	return buf[bit/8] |= (1 << (bit % 8));
 }
 
+// DECREMENT FREE INODES
+// Purpose:
 int decFreeInodes(int dev)
 {
 	//Decrement free inode count in Super Block
@@ -208,6 +224,8 @@ int decFreeInodes(int dev)
 	put_block(dev ,2 ,buf);
 }
 
+// DECREMENT FREE BLOCKS
+// Purpose:
 int decFreeBlocks(int dev)
 {
 	//Decrement free inode count in Super Block
@@ -223,6 +241,8 @@ int decFreeBlocks(int dev)
 	put_block(dev ,2 ,buf);
 }
 
+// INODE ALLOCATE
+// Purpose: 
 int ialloc(int dev)
 {
 	int i;
@@ -242,6 +262,8 @@ int ialloc(int dev)
 	return 0;
 }
 
+// BLOCK ALLOCATE
+// Purpose: 
 int balloc(int dev)
 {
 int i;
@@ -261,11 +283,15 @@ int i;
 	return 0;	
 }
 
+// CLEAR BIT
+// Purpose: 
 int clr_bit(char *buf, int bit) // clear bit in char buf[BLKSIZE]
 { 
 	buf[bit/8] &= ~(1 << (bit%8)); 
 }
 
+// INCREMENT FREE INODES
+// Purpose: 
 int incFreeInodes(int dev)
 {
 	char buf[BLKSIZE];
@@ -280,6 +306,8 @@ int incFreeInodes(int dev)
 	put_block(dev, 2, buf);
 }
 
+// INCREMENT FREE BLOCKS
+// Purpose: 
 int incFreeBlocks(int dev)
 {
 	char buf[BLKSIZE];
@@ -294,6 +322,8 @@ int incFreeBlocks(int dev)
 	put_block(dev, 2, buf);
 }
 
+// INODE DEALLOCATE
+// Purpose: 
 int idalloc(int dev, int ino)
 {
 	int i;
@@ -307,6 +337,8 @@ int idalloc(int dev, int ino)
 	incFreeInodes(dev);
 }
 
+// BLOCK DEALLOCATE
+// Purpose: 
 int bdalloc(int dev, int bno)
 {
 	int i;
@@ -325,6 +357,8 @@ int bdalloc(int dev, int bno)
 	incFreeBlocks(dev);
 }
 
+// FIND NAME
+// Purpose
 int findname(MINODE * pmip, int ino, char * name)
 {
 	int found = 0;
@@ -346,6 +380,8 @@ int findname(MINODE * pmip, int ino, char * name)
 	return found;
 }
 
+// ENTER CHILD
+// Purpose:
 int enter_child(MINODE *pip, int ino, char *child)
 {
 	int i;
