@@ -3,7 +3,7 @@
 // End
 // ls|cd|pwd|mkdir|creat|rmdir|link|unlink|symlink|chmod|stat|touch|open|close|read|write|lseek|cat|cp|mv|mount|umount|quit (permission checking)
 // Need work
-// mkdir|creat|symlink|stat|chmod|touch|open|close|read|write|lseek|cat|cp|mv|mount|umount|quit (permission checking)
+// chmod|open|close|read|write|lseek|cat|cp|mv|mount|umount|quit (permission checking)
 /*			
  * 			   Rely on iput, which is buggy
                mkdir, creat, symlink, touch;
@@ -16,6 +16,218 @@
                mount, umount
                File permission checking
 */
+
+// READ
+// Purpose:
+/**************** Algorithm of kread() in kernel ****************/
+int myread(int fd, char buf[ ], int nbytes) //space=K|U
+{ 
+//(1). validate fd; ensure oft is opened for READ or RW;
+//(2). if (oft.mode = READ_PIPE) 
+//         return read_pipe(fd, buf, nbytes);/
+//(3). if (minode.INODE is a special file) 
+//         return read_special(device,buf,nbytes);
+//(4). (regular file):
+//         return read_file(fd, buf, nbytes, space);
+} 
+/*************** Algorithm of read regular files ****************/
+int read_file(int fd, char *buf, int nbytes) { 
+//(1). lock minode;
+//(2). count = 0;         // number of bytes read
+//     compute bytes available in file: avil = fileSize - offset;
+//(3). while (nbytes){
+//       compute logical block: lbk   = offset / BLKSIZE;
+//       start byte in block:   start = offset % BLKSIZE;
+//(4).   convert logical block number, lbk, to physical block number,
+//       blk, through INODE.i_block[ ] array;
+//(5).   read_block(dev, blk, kbuf); // read blk into kbuf[BLKSIZE];
+//       char *cp = kbuf + start; 
+//       remain = BLKSIZE - start;
+//(6)    while (remain){// copy bytes from kbuf[ ] to buf[ ]
+//          (space)? put_ubyte(*cp++, *buf++) : *buf++ = *cp++; 
+ //         offset++; count++;           // inc offset, count;
+  //        remain--; avil--; nbytes--;  // dec remain, avil, nbytes;
+   //       if (nbytes==0 || avail==0) //
+ //             break;
+} 
+//(7). unlock minode;
+//(8). return count;*/
+
+// WRITE
+//Purpose: 
+int mywrite(int fd, char *ubuf, int nbytes) {
+	//1. Validate fd; ensure OFT is opened for write
+	//2. if (oft.mode = WRITE_PIPE) return write_pipe(fd, buf, nbytes)
+	//3 if (minode.inode is a special file return write_special(device, buf.nbytes);
+	// return write_file(fd, ubuf, nbytes)
+}	
+	
+// WRITE FILE
+// HELPER FUNCTION
+// Purpose: to assist write function
+int write_file(int fd, char *ubuf, int nbytes) {
+	// lock minode;
+	// count = 0;
+	/*while (nbytes) {
+		//int lbk = running->fd[fd]->offset / BLKSIZE;
+		//int start = oftp->offset % BLKSIZE;
+		// Conver lbk to physical block number
+		read_block(dev, blk, kbuf);
+		char *cp = kbuf + start;
+		remain = BLKSIZE - start;
+		while (remain) {
+			put_ubyte(*cp++, *ubuf++);
+			offset++;
+			count++;
+			remain--;
+			nbytes--;
+			if (offset > fileSize) fileSize++;
+			if (nbytes <= 0) break;
+		}
+		write_block(dev, blk, kbuf);
+	}
+	//set minode dirty = 1;
+	unlock(minode);
+	return count;*/
+}
+
+// LSEEK
+//Purpose: 
+
+// CONCATENATE
+//Purpose: const int device = running->cwd->device;
+void mycat(char *args) {
+    // Cat every file given
+    while(args) {
+        char* pathname = args;
+        int fd = myopen(pathname, "RD"), n = 0;
+        char buf[BLKSIZE + 1];
+        while((n = myread(fd, buf, BLKSIZE))) {
+            buf[n] = '\0'; // null terminated string
+            int j = 0;
+            while(buf[j]) {
+                putchar(buf[j]);
+                if(buf[j] == '\n') putchar('\r');
+                j++;
+            }
+        } 
+        printf("\n\r");
+        myclose(fd);
+        args = strtok(NULL, " ");
+    }
+}
+
+// COPY
+//Purpose: Copy a file or directory, not linked so no shared fate
+void mycopy(char *file, char *copy) {
+	
+}
+
+// MOVE
+//Purpose: Moves a directory or file
+void mymove(char *file, char *location) {
+	// Move
+	// Remove child then add it to new location
+}
+
+// MOUNT
+//Purpose: 
+/*mymount()  // Usage: mount [filesys mount_point]
+ { 
+1. If no parameter, display current mounted file systems; 
+2. Check whether filesys is already mounted: 
+    The MOUNT table entries contain mounted file system (device) names 
+    and their mounting points. Reject if the device is already mounted.
+    If not, allocate a free MOUNT table entry.
+3. filesys is a special file with a device number dev=(major,minor)
+.
+    Read filesys' superblock to verify it is an EXT2 FS. 
+4. find the ino, and then the minode of mount_point:
+         call ino = get_ino(&dev, pathname);  to get ino:
+         call mip = iget(dev, ino); to load its inode into memory;   
+5. Check mount_point is a DIR and not busy, e.g. not someone's CWD.
+6. Record dev and filesys name in the MOUNT table entry
+;
+    also, store its ninodes, nblocks, etc. for quick reference.
+7. Mark mount_point's minode as mounted on (mounted flag = 1) and let 
+  it point at the MOUNT table entry, which points back to the 
+  mount_point minode
+  */
+
+// UNMOUNT
+//Purpose: 
+/*umount(char *filesys)
+{ 
+1. Search the MOUNT table to check filesys is indeed mounted.
+2. Check (by checking all active minode[].dev) whether any file is
+    active in the mounted filesys; If so, reject
+;
+3. Find the mount_point's in-memory inode, which should be in memory
+while it's mounted on. Reset the minode's mounted flag to 0; then
+iput() the minode
+.
+4. return SUCCESS;*/
+
+// OPEN
+// Purpose:
+void myopen(char *file, char *flag) {
+	//1. get file's minode:
+	int ino = getino(file);
+	// If the file doesn't exist make it
+	if (ino==0 && O_CREAT){
+		Creat(file);
+		ino = getino(file);
+	} 
+	MINODE *mip = iget(mtable[0].dev, ino);
+	//2. check file INODE's access permission; (LEVEL 3 THING)
+	//for non-special file, check for incompatible open modes
+	
+	//3. allocate an openTable entry;
+	//initialize openTable entries;
+	//set byteOffset = 0 for R|W|RW; 
+	//set to file size for APPEND mode;
+
+	//4. Search for a FREE fd[ ] entry with the lowest index fd in PROC;
+	//let fd[fd]point to the openTable entry;
+	
+	//5. unlock minode; 
+	//return fd as the file descriptor;
+
+
+    int mode = 0;
+    if(strcmp(flag, "RD") == 0) mode = 0;
+    else if(strcmp(flag, "WR") == 0) mode = 1;
+    else if(strcmp(flag, "RW") == 0) mode = 2;
+    else if(strcmp(flag, "APPEND") == 0) mode = 3;
+    else {
+        fprintf(stderr, "open: unknown mode '%s'\n", flag);
+        return;
+    }
+
+	//return open_file(file, mode);
+}
+
+// CLOSE
+// Purpose: 
+void myclose() {
+/*	*************  Algorithm of close()  *****************
+/
+int close(int fd) { 
+(1). check fd is a valid opened file descriptor;
+(2). if (PROC's fd[fd] != 0){
+(3).    if (openTable's mode == READ/WRITE PIPE)
+return close_pipe(fd); // close pipe descriptor;
+(4).    if (--refCount == 0){ // if last process using this OFT
+lock(minodeptr); 
+iput(minode);      // release minod
+e
+} 
+} 
+(5). clear fd[fd] = 0;      
+     // clear fd[fd] to 
+0
+(6). return SUCCESS;*/
+}
 
 // CHANGE MODE
 // Purpose: Change permissions of a file or directory.
@@ -92,23 +304,20 @@ void Mkdir(char *pathname) {
 	printf("parent = %s\nchild = %s\n", pathname, child);
 	ino = getino(parent);
 	
-	if(ino == 0)//does parent exist?
-	{
+	if(ino == 0) {//does parent exist?
 		printf("Parent doesn't exist\n");
 		return;
 	}
 	MINODE *pmip = iget(mtable[0].dev, ino);
 	
 	//check pmip-> INODE is a dir//
-	if(!S_ISDIR(pmip->inode.i_mode))
-	{
+	if(!S_ISDIR(pmip->inode.i_mode)) {
 		printf("Parent is not a Dir\n");
 		return;
 	}
 	
 	//child must not exist in parent
-	if(search(pmip, child) != -1)
-	{
+	if(search(pmip, child) != -1) {
 		printf("Child exists in parent\n");
 		return;
 	}
@@ -181,185 +390,6 @@ void my_mkdir(MINODE *pmip, char *name) {
 	
 	
 	iput(pmip);
-}
-
-// REMOVE DIRECTORY
-// Purpose: Remove an empty directory.
-void rmdir(char * pathname) {
-	int count = 0;
-	char name[128], temp[128];
-	// get in-memory INODE of pathname:
-	int ino = getino(pathname);
-	MINODE * mip = iget(dev, ino);
-	char *parent = dirname(pathname);
-	int pino = getino(parent);
-	//verify INODE is a DIR (by INODE.i_mode field);
-	if(!S_ISDIR(mip->inode.i_mode))
-	{
-		printf("File is not a Dir\n");
-		return;
-	}
-	
-	//minode is not BUSY (refCount = 1);
-	printf("refcount = %d\n", mip->refCount);
-	if(mip->refCount > 1)
-	{
-		printf("Dir is busy\n");
-		return;
-	}
-	
-	//verify DIR is empty (traverse data blocks for number of entries = 2);
-	if(mip->inode.i_links_count == 2)
-	{
-		//traverse data blocks insearch of files
-		// Go through the blocks WE'll Be using
-			// Get the i_block of the inode
-			get_block(dev, mip->inode.i_block[0] , buf);
-			dp = (DIR *)buf;
-			char *cp = buf;
-			
-			while (cp < buf + BLKSIZE) 
-			{
-				strncpy(temp, dp->name, dp->name_len);
-				temp[dp->name_len] = 0;
-				if ((strcmp(temp, ".") != 0) && (strcmp(temp, "..") != 0)) {
-					printf("Dir not empty\n");
-					return; 
-				}
-				cp += dp->rec_len;
-				dp = (DIR *)cp;
-				
-			}
-	}
-	printf("linkcount = %d\n", mip->inode.i_links_count);
-	if(mip->inode.i_links_count > 2)
-	{
-		printf("Dir not empty\n");
-		return;
-	}
-	
-	/* get parent's ino and inode */
-	MINODE * pmip = iget(mip->dev, pino);
- 
-	//(4). /* get name from parent DIR’s data block
-	findname(pmip, ino, name); //find name from parent DIR
-	
-	//(5). remove name from parent directory */
-	rm_child(pmip, name);
-	
-	//(6). /* deallocate its data blocks and inode */
-	bdalloc(mip->dev, mip->inode.i_block[0]);
-	idalloc(mip->dev, mip->ino);
-	iput(mip);
-	
-	//(7). dec parent links_count by 1; mark parent pimp dirty;
-	pmip->inode.i_links_count--;
-	pmip->dirty = 1;
-	iput(pmip);
-}
-
-// REMOVE CHILD
-// HELPER FUNCTION
-// Purpose: Remove the child from the parents directory.
-int rm_child(MINODE * pmip, char * name) {
-	//got through each of the parent's blocks
-	int ino, tempRecLen, found = 0, i, prevDirLen;
-	char *cp, temp[256];
-	ino = search(pmip, name);
-	
-	for(i = 0; i < 12 ; i++) {
-		//get the parent block
-		get_block(mtable[0].dev, pmip->inode.i_block[i], buf);
-		
-		dp = (DIR *)buf;
-		cp = buf;
-		
-		//search through directories by inode number
-		while (cp < buf + BLKSIZE) {
-			// Difference of ls_dir if they find their inode, break with temp intact
-			strncpy(temp, dp->name, dp->name_len);
-			temp[dp->name_len] = 0;
-			if (!strcmp(name, temp)) {
-				found = 1;
-				break;
-			}
-			prevDirLen = dp->rec_len;
-			cp += dp->rec_len;
-			dp = (DIR *)cp;
-			if (dp->rec_len == 0) return;
-		}	
-		//if the directory is found jump out break out of for loop
-		if (found) break;	
-	}
-	
-	//If the directory is the only child
-	if(dp->rec_len == BLKSIZE) {
-		//deallocate dir
-		free(buf);
-		idalloc(mtable[0].dev, ino);
-		pmip->inode.i_size -= BLKSIZE;
-			
-		//move parent's blocks left
-		for(; i < 11; i++) {
-				get_block(dev, pmip->inode.i_block[i], buf);
-				put_block(dev, pmip->inode.i_block[i - 1], buf);
-		}
-	}
-	//If the directroy is the last directory
-	else if(cp + dp->rec_len == buf + BLKSIZE) //cp is the beginning position of the dir. Buf is the beginning position of first dir
-	{
-		//holding onto cur dir's len
-		tempRecLen = dp->rec_len;
-		
-		//getting previous dir
-		
-		//Before: cp -=  dp->rec_len;
-		
-		//NEED TO SUBTRACT THE PREVIOUS DIRECTORIES LENGTH NOT CURRENT DIRECTORY
-		cp -= prevDirLen;
-		dp = (DIR *) cp;
-			
-		//adding the len of cur dir to previous dir
-		dp->rec_len += tempRecLen;
-			
-		//put_block
-		put_block(dev, pmip->inode.i_block[i], buf);
-	}
-	else
-	{
-		//store deleted rec_len
-		tempRecLen = dp->rec_len;
-		u8 *start = cp + dp->rec_len;
-		u8 *end = buf + BLKSIZE;
-		printf("start = %d\nend =   %d\n", start, end);	
-		
-		//move everythng left
-		memmove(cp, start, end - start); //TAKES IN POINTERS FOR FIRST AND SECOND ARGUEMENTS
-
-
-		dp = (DIR *)cp;
-		while(cp + tempRecLen < buf + BLKSIZE)
-		{
-			if (dp->name_len == 0) break;
-			printf("dp name = %s\n", dp->name);
-			printf("dp name len = %d\n", dp->name_len);
-			cp += dp->rec_len;
-			dp = (DIR *)cp;
-			
-		}	
-		
-		//add deleted rec_len to last dir
-		dp->rec_len += tempRecLen;
-	
-		
-		//put_block
-		put_block(mtable[0].dev, pmip->inode.i_block[i], buf);
-		
-	}
-	//make parent's dirty propery true
-	pmip->dirty = 1;
-	iput(pmip);
-
 }
 
 // CREATE
@@ -455,63 +485,6 @@ void my_creat(MINODE *pmip, char *name) {
 	iput(pmip);
 }
 
-// STAT
-// Purpose: Returns file attributes from node.
-void myStat(char *name) {
-	// Check that the file exists within
-	if(!name) {
-		printf("No file specified.\n");
-		return;
-	}
-	// Otherwise get to work.
-	int ino = getino(name);
-	// Print Name
-	printf("  File: '%s'\n", name);
-	// Size, blocks, IO block, filetype
-	printf("%d", ip->i_size);
-	if(!S_ISDIR(ip->i_mode)) printf("file\n");
-	else printf("directory\n");
-	// device, inode, links
-	printf("Device: Inode: Links");
-	// access, uid, gid
-	
-	// time info
-	
-MINODE *mip = iget(mtable[0].dev, ino);
-    if(!mip) {
-        fprintf(stderr, "list_file: Null pointer to memory inode\n");
-        return;
-    }
-
-    INODE *ip = &mip->inode;
-    u16 mode   = ip->i_mode;
-    u16 links  = ip->i_links_count;
-    u32 size   = ip->i_size;
-
-    static const char* Permissions = "rwxrwxrwx";
-
-    // Type 
-    // The leading 4 bits of mode (2 bytes/16 bits) indicate type
-    // 0xF000 = 1111 0000 0000 0000
-    switch(mode & 0xF000) 
-    {
-        case 0x8000:  putchar('-');     break; // 0x8 = 1000
-        case 0x4000:  putchar('d');     break; // 0x4 = 0100
-        case 0xA000:  putchar('l');     break; // oxA = 1010
-        default:      putchar('?');     break;
-    }
-
-    // Permissions
-    for(int i = 0; i < strlen(Permissions); i++)
-        putchar(mode & (1 << (strlen(Permissions) - 1 - i)) ? Permissions[i] : '-');
-
-    // Everything else
-    printf("%3hu %6u %2d  ", links, size, ino);
-
-    // Trace link
-    if(S_ISLNK(ip->i_mode)) printf(" -> %s", (char*)ip->i_block);
-}
-
 int main(int argc, char *argv[]) {
 	// Used for getting input
 	char line[128];
@@ -521,122 +494,15 @@ int main(int argc, char *argv[]) {
 	// Initiate and mount the root
 	init();
 	mount_root(device);
-	
 	// Main loop
-	while(1) 
-	{
+	while(1) {
 		// Print commands and get input
 		printf("user$ ");
 		fgets(line, 128, stdin);
 		tok = strtok(line," ");
-		// look into removing "/n"
 		//Get command token
 		if(tok) cmd = tok;
-		
-		// EXIT
-		if(!strcmp(cmd, "quit\n")) quit();
-		// LS
-		else if(!strcmp(cmd, "ls") | (!strcmp(cmd, "ls\n"))) {
-			// Use ls with pathname, which is retrieved from second token
-			tok = strtok(NULL," ");
-			ls(tok);
-		}
-		// CD
-		else if(!strcmp(cmd, "cd\n") | (!strcmp(cmd, "cd"))) { 
-			// Also uses second token to get a pathname
-			tok = strtok(NULL," ");
-			cd(tok);
-		}
-		// PWD
-		else if(!strcmp(cmd, "pwd\n")) {
-			
-			pwd(running->cwd);
-		}
-		// mkdir
-		else if(!strcmp(cmd, "mkdir")) {
-			tok = strtok(NULL, " ");
-			Mkdir(tok);
-		}
-		// creat
-		else if(!strcmp(cmd, "creat")) {
-			tok = strtok(NULL, " ");
-			Creat(tok);
-		}
-		// rmdir
-		else if(!strcmp(cmd, "rmdir")) {
-			tok = strtok(NULL, " ");
-			rmdir(tok);
-		}
-		// LINK
-		else if(!strcmp(cmd, "link")) {
-			tok = strtok(NULL, " ");
-			strncpy(file1, tok, sizeof(tok));
-			tok = strtok(NULL, " ");
-			myLink(file1, tok);
-		}
-		//UNLINK
-		else if(!strcmp(cmd, "unlink")) {
-			tok = strtok(NULL, " ");
-			myUnlink(tok);
-		}
-		//SYMLINK
-		else if(!strcmp(cmd, "symlink")) {
-			tok = strtok(NULL, " ");
-			strncpy(file1, tok, sizeof(tok));
-			tok = strtok(NULL, " ");
-			mySymlink(file1, tok);
-		}
-		else if(!strcmp(cmd, "chmod")) {
-			tok = strtok(NULL, " ");
-			mychmod(tok);
-		} 
-		else if(!strcmp(cmd, "stat")) {
-			tok = strtok(NULL, " ");
-			myStat(tok);
-		} /*
-		else if(!strcmp(cmd, "touch")) {
-			tok = strtok(NULL, " ");
-			mytouch(tok);
-		}
-		else if(!strcmp(cmd, "open")) {
-			tok = strtok(NULL, " ");
-			myopen(tok);
-		}
-		else if(!strcmp(cmd, "close")) {
-			tok = strtok(NULL, " ");
-			myclose(tok);
-		}
-		else if(!strcmp(cmd, "read")) {
-			tok = strtok(NULL, " ");
-			myread(tok);
-		}
-		else if(!strcmp(cmd, "write")) {
-			tok = strtok(NULL, " ");
-			mywrite(tok);
-		}
-		else if(!strcmp(cmd, "lseek")) {
-			tok = strtok(NULL, " ");
-			mylseek(tok);
-		}
-		else if(!strcmp(cmd, "cat")) {
-			tok = strtok(NULL, " ");
-			mycat(tok);
-		}
-		else if(!strcmp(cmd, "cp")) {
-			tok = strtok(NULL, " ");
-			mycp(tok);
-		}
-		else if(!strcmp(cmd, "mv")) {
-			tok = strtok(NULL, " ");
-			mymv(tok);
-		}
-		else if(!strcmp(cmd, "mount")) {
-			tok = strtok(NULL, " ");
-			mymount(tok);
-		}
-		else if(!strcmp(cmd, "umount")) {
-			tok = strtok(NULL, " ");
-			myumount(tok);
-		}*/
+		// Pass of command checking to a function
+		command(cmd, tok);
 	}
 }

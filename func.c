@@ -184,7 +184,7 @@ void ls_file(int ino)
         putchar(mode & (1 << (strlen(Permissions) - 1 - i)) ? Permissions[i] : '-');
 
     // Everything else
-    printf("%3hu %6u %2d  ", links, size, ino);
+    printf("%3hu %6u %2d  %9u   ", links, size, ino, mode);
 
     // Trace link
     if(S_ISLNK(ip->i_mode)) printf(" -> %s", (char*)ip->i_block);
@@ -324,4 +324,349 @@ void myUnlink(char *file) {
 	printf("mip ino = %d\n", mip->ino);
 	// Then put the minode
 	iput(mip);
+}
+
+// STAT
+// Purpose: Returns file attributes from node.
+void myStat(char *name) {
+	// Check that the file exists within
+	if(!name) {
+		printf("No file specified.\n");
+		return;
+	}
+	// Otherwise get to work.
+	// Setup filename so it doesn't have the newline
+	char filename[128];
+	strncpy(filename, name, sizeof(name)-1);
+	filename[strlen(name)-1] = '\0';
+	
+	
+	
+	int ino = getino(name);
+	MINODE *mip = iget(mtable[0].dev, ino);
+	// Parent doesn't exist
+    if(!mip) {
+        fprintf(stderr, "list_file: Null pointer to memory inode\n");
+        return;
+    }
+	// Get various things needed for stat
+    INODE *ip = &mip->inode;
+    u16 mode   = ip->i_mode;
+    u16 links  = ip->i_links_count;
+    u32 size   = ip->i_size;
+    u32 blocks = ip->i_blocks;
+    u32 time = ip->i_ctime;
+	
+	
+	
+	char* xtime = ctime((time_t*)&ip->i_atime);
+	char* ytime = ctime((time_t*)&ip->i_mtime);
+	char* ztime = ctime((time_t*)&ip->i_ctime);
+    
+    static const char* Permissions = "rwxrwxrwx";
+
+    // Trace link
+    if(S_ISLNK(ip->i_mode)) printf(" -> %s", (char*)ip->i_block);
+
+	// *************START OF PRINT BLOCK******************
+	// Print Name
+	printf("\n  File: '%s'\n", filename);
+	// Size, blocks, IO block, filetype
+	printf("  Size:%10u Blocks: %9u  IO Block:     ",size, blocks);
+	if(!S_ISDIR(ip->i_mode)) printf("file\n");
+	else printf("directory\n");
+	// device, inode, links
+	printf("Device: %9d Inode: %10d  Links: %3hu\n", mtable[0].dev, ino, links);
+	// access, uid, gid
+	printf("Access: (%d/", mode);
+	switch(mode & 0xF000) {
+        case 0x8000:  putchar('-');     break; // 0x8 = 1000
+        case 0x4000:  putchar('d');     break; // 0x4 = 0100
+        case 0xA000:  putchar('l');     break; // oxA = 1010
+        default:      putchar('?');     break;
+    }
+
+    // Permissions
+    for(int i = 0; i < strlen(Permissions); i++)
+        putchar(mode & (1 << (strlen(Permissions) - 1 - i)) ? Permissions[i] : '-');
+    printf(")   ");
+    printf("Uid:  %2u  Gid:  %2u\n", ip->i_uid, ip->i_gid);
+	// time info
+	printf("Access: %s\n", xtime);
+	printf("Modify: %s", ytime);
+	printf("Change: %s\n", ztime);
+	iput(mip);
+}
+
+void command(char *cmd, char *tok) {
+	char file1[128];
+	
+// EXIT
+		if(!strcmp(cmd, "quit\n")) quit();
+		// LS
+		else if(!strcmp(cmd, "ls") | (!strcmp(cmd, "ls\n"))) {
+			// Use ls with pathname, which is retrieved from second token
+			tok = strtok(NULL," ");
+			ls(tok);
+		}
+		// CD
+		else if(!strcmp(cmd, "cd\n") | (!strcmp(cmd, "cd"))) { 
+			// Also uses second token to get a pathname
+			tok = strtok(NULL," ");
+			cd(tok);
+		}
+		// PWD
+		else if(!strcmp(cmd, "pwd\n")) {
+			pwd(running->cwd);
+		}
+		// mkdir
+		else if(!strcmp(cmd, "mkdir")) {
+			tok = strtok(NULL, " ");
+			Mkdir(tok);
+		}
+		// creat
+		else if(!strcmp(cmd, "creat")) {
+			tok = strtok(NULL, " ");
+			Creat(tok);
+		}
+		// rmdir
+		else if(!strcmp(cmd, "rmdir")) {
+			tok = strtok(NULL, " ");
+			rmdir(tok);
+		}
+		// LINK
+		else if(!strcmp(cmd, "link")) {
+			tok = strtok(NULL, " ");
+			strncpy(file1, tok, sizeof(tok));
+			tok = strtok(NULL, " ");
+			myLink(file1, tok);
+		}
+		//UNLINK
+		else if(!strcmp(cmd, "unlink")) {
+			tok = strtok(NULL, " ");
+			myUnlink(tok);
+		}
+		//SYMLINK
+		else if(!strcmp(cmd, "symlink")) {
+			tok = strtok(NULL, " ");
+			strncpy(file1, tok, sizeof(tok));
+			tok = strtok(NULL, " ");
+			mySymlink(file1, tok);
+		}
+		else if(!strcmp(cmd, "chmod")) {
+			tok = strtok(NULL, " ");
+			mychmod(tok);
+		} 
+		else if(!strcmp(cmd, "stat")) {
+			tok = strtok(NULL, " ");
+			myStat(tok);
+		}/*
+		else if(!strcmp(cmd, "touch")) {
+			tok = strtok(NULL, " ");
+			mytouch(tok);
+		}*/
+		else if(!strcmp(cmd, "close")) {
+			tok = strtok(NULL, " ");
+			myclose(tok);
+		}/*
+		else if(!strcmp(cmd, "lseek")) {
+			tok = strtok(NULL, " ");
+			mylseek(tok);
+		}/*
+		else if(!strcmp(cmd, "cat")) {
+			tok = strtok(NULL, " ");
+			mycat(tok);
+		}*/
+		else if(!strcmp(cmd, "cp")) {
+			tok = strtok(NULL, " ");
+			mycopy(tok);
+		}/*
+		else if(!strcmp(cmd, "mv")) {
+			tok = strtok(NULL, " ");
+			mymv(tok);
+		}
+		else if(!strcmp(cmd, "mount")) {
+			tok = strtok(NULL, " ");
+			mymount(tok);
+		}
+		else if(!strcmp(cmd, "umount")) {
+			tok = strtok(NULL, " ");
+			myumount(tok);
+		}*/	
+	
+}
+
+// REMOVE DIRECTORY
+// Purpose: Remove an empty directory.
+void rmdir(char * pathname) {
+	int count = 0;
+	char name[128], temp[128];
+	// get in-memory INODE of pathname:
+	int ino = getino(pathname);
+	MINODE * mip = iget(dev, ino);
+	char *parent = dirname(pathname);
+	int pino = getino(parent);
+	//verify INODE is a DIR (by INODE.i_mode field);
+	if(!S_ISDIR(mip->inode.i_mode)) {
+		printf("File is not a Dir\n");
+		return;
+	}
+	//minode is not BUSY (refCount = 1);
+	printf("refcount = %d\n", mip->refCount);
+	if(mip->refCount > 1) {
+		printf("Dir is busy\n");
+		return;
+	}
+	//verify DIR is empty (traverse data blocks for number of entries = 2);
+	if(mip->inode.i_links_count == 2)
+	{
+		//traverse data blocks insearch of files
+		// Go through the blocks WE'll Be using
+			// Get the i_block of the inode
+			get_block(dev, mip->inode.i_block[0] , buf);
+			dp = (DIR *)buf;
+			char *cp = buf;
+			
+			while (cp < buf + BLKSIZE) 
+			{
+				strncpy(temp, dp->name, dp->name_len);
+				temp[dp->name_len] = 0;
+				if ((strcmp(temp, ".") != 0) && (strcmp(temp, "..") != 0)) {
+					printf("Dir not empty\n");
+					return; 
+				}
+				cp += dp->rec_len;
+				dp = (DIR *)cp;
+				
+			}
+	}
+	printf("linkcount = %d\n", mip->inode.i_links_count);
+	if(mip->inode.i_links_count > 2)
+	{
+		printf("Dir not empty\n");
+		return;
+	}
+	
+	/* get parent's ino and inode */
+	MINODE * pmip = iget(mip->dev, pino);
+ 
+	//(4). /* get name from parent DIR’s data block
+	findname(pmip, ino, name); //find name from parent DIR
+	
+	//(5). remove name from parent directory */
+	rm_child(pmip, name);
+	
+	//(6). /* deallocate its data blocks and inode */
+	bdalloc(mip->dev, mip->inode.i_block[0]);
+	idalloc(mip->dev, mip->ino);
+	iput(mip);
+	
+	//(7). dec parent links_count by 1; mark parent pimp dirty;
+	pmip->inode.i_links_count--;
+	pmip->dirty = 1;
+	iput(pmip);
+}
+
+// REMOVE CHILD
+// HELPER FUNCTION
+// Purpose: Remove the child from the parents directory.
+int rm_child(MINODE * pmip, char * name) {
+	//got through each of the parent's blocks
+	int ino, tempRecLen, found = 0, i, prevDirLen;
+	char *cp, temp[256];
+	ino = search(pmip, name);
+	
+	for(i = 0; i < 12 ; i++) {
+		//get the parent block
+		get_block(mtable[0].dev, pmip->inode.i_block[i], buf);
+		
+		dp = (DIR *)buf;
+		cp = buf;
+		
+		//search through directories by inode number
+		while (cp < buf + BLKSIZE) {
+			// Difference of ls_dir if they find their inode, break with temp intact
+			strncpy(temp, dp->name, dp->name_len);
+			temp[dp->name_len] = 0;
+			if (!strcmp(name, temp)) {
+				found = 1;
+				break;
+			}
+			prevDirLen = dp->rec_len;
+			cp += dp->rec_len;
+			dp = (DIR *)cp;
+			if (dp->rec_len == 0) return;
+		}	
+		//if the directory is found jump out break out of for loop
+		if (found) break;	
+	}
+	
+	//If the directory is the only child
+	if(dp->rec_len == BLKSIZE) {
+		//deallocate dir
+		free(buf);
+		idalloc(mtable[0].dev, ino);
+		pmip->inode.i_size -= BLKSIZE;
+			
+		//move parent's blocks left
+		for(; i < 11; i++) {
+				get_block(dev, pmip->inode.i_block[i], buf);
+				put_block(dev, pmip->inode.i_block[i - 1], buf);
+		}
+	}
+	//If the directroy is the last directory
+	else if(cp + dp->rec_len == buf + BLKSIZE) //cp is the beginning position of the dir. Buf is the beginning position of first dir
+	{
+		//holding onto cur dir's len
+		tempRecLen = dp->rec_len;
+		
+		//getting previous dir
+		
+		//Before: cp -=  dp->rec_len;
+		
+		//NEED TO SUBTRACT THE PREVIOUS DIRECTORIES LENGTH NOT CURRENT DIRECTORY
+		cp -= prevDirLen;
+		dp = (DIR *) cp;
+			
+		//adding the len of cur dir to previous dir
+		dp->rec_len += tempRecLen;
+			
+		//put_block
+		put_block(dev, pmip->inode.i_block[i], buf);
+	}
+	else
+	{
+		//store deleted rec_len
+		tempRecLen = dp->rec_len;
+		u8 *start = cp + dp->rec_len;
+		u8 *end = buf + BLKSIZE;
+		printf("start = %d\nend =   %d\n", start, end);	
+		
+		//move everythng left
+		memmove(cp, start, end - start); //TAKES IN POINTERS FOR FIRST AND SECOND ARGUEMENTS
+
+
+		dp = (DIR *)cp;
+		while(cp + tempRecLen < buf + BLKSIZE)
+		{
+			if (dp->name_len == 0) break;
+			printf("dp name = %s\n", dp->name);
+			printf("dp name len = %d\n", dp->name_len);
+			cp += dp->rec_len;
+			dp = (DIR *)cp;
+			
+		}	
+		
+		//add deleted rec_len to last dir
+		dp->rec_len += tempRecLen;
+	
+		
+		//put_block
+		put_block(mtable[0].dev, pmip->inode.i_block[i], buf);
+		
+	}
+	//make parent's dirty propery true
+	pmip->dirty = 1;
+	iput(pmip);
+
 }

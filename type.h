@@ -1,5 +1,4 @@
 /*	type.h for CS360 Project             */
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <fcntl.h>
@@ -7,8 +6,7 @@
 #include <libgen.h>
 #include <string.h>
 #include <sys/stat.h>
-
-
+#include <time.h>
 
 typedef unsigned char  u8;
 typedef unsigned short u16;
